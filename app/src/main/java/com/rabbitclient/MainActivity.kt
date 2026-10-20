@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val Bg = Color(0xFF080B10)
-private val Panel = Color(0xCC121821)
-private val PanelRaised = Color(0xD919222D)
+private val Panel = Color(0xA610141A)
+private val PanelRaised = Color(0xB8141A22)
 private val Accent = Color(0xFFB7F7D5)
 private val AccentDeep = Color(0xFF62D9A0)
 private val TextMuted = Color(0xFF91A0B2)
@@ -114,10 +114,22 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             if (fullWallpaper != null) {
                 Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Color(0x66060A10)))
+                Box(Modifier.fillMaxSize().background(Color(0x33060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
+            topBar = {
+                Row(Modifier.fillMaxWidth().background(Color(0xDD050608)).padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("❧", color = Accent, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Rabbit Client", color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    listOf("Home", "Instances", "About", "Settings").forEach { destination ->
+                        TextButton(onClick = { page = if (destination == "About") "Settings" else destination }, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp)) {
+                            Text(destination, color = if (page == destination || (destination == "About" && page == "Settings")) Accent else TextMuted, fontSize = 11.sp, maxLines = 1)
+                        }
+                    }
+                }
+            },
             bottomBar = {
                 NavigationBar(
                     containerColor = Color(0xCC0D1219),
@@ -329,7 +341,7 @@ private fun HomeScreen(enabledCount: Int, wallpaperSelected: Boolean, onWallpape
             Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.weight(1.15f)) {
                 Column(Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Content", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Text("Content Management", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
                         TextButton(onClick = onInstances, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("View all", color = TextMuted, fontSize = 10.sp) }
                     }
                     Spacer(Modifier.height(5.dp))
