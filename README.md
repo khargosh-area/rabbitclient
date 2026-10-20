@@ -41,6 +41,7 @@ Open this project in Android Studio with a compatible Android SDK and JDK 17. Gi
 - [Android class/storage map](docs/rea-investigation-followup-2-android-map.md)
 - [Module lifecycle and HUD notes](docs/rea-investigation-followup-3-module-lifecycle.md)
 - [Feature compatibility matrix](docs/compatibility-matrix.md)
+- [Isolated instance architecture and acceptance checklist](docs/instance-architecture.md)
 
 ## Safety, licensing and attribution
 
