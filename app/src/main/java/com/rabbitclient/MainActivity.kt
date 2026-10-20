@@ -81,6 +81,13 @@ private fun RabbitApp() {
     val context = LocalContext.current
     var enabled by remember(context) { mutableStateOf(loadEnabledModules(context)) }
     var wallpaperUri by remember(context) { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
+    val homeWallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+            wallpaperUri = uri.toString()
+            context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", uri.toString()).apply()
+        }
+    }
     val fullWallpaper: ImageBitmap? = remember(wallpaperUri) {
         try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
     }
@@ -180,6 +187,8 @@ private fun RabbitApp() {
                 when (page) {
                     "Home" -> HomeScreen(
                         enabledCount = enabled.size,
+                        wallpaperSelected = wallpaperUri != null,
+                        onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onModules = { page = "Modules" },
                         onInstances = { page = "Instances" }
                     )
@@ -249,7 +258,7 @@ private fun detectInstalledGame(context: Context): InstalledGame? {
 }
 
 @Composable
-private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: () -> Unit) {
+private fun HomeScreen(enabledCount: Int, wallpaperSelected: Boolean, onWallpaperClick: () -> Unit, onModules: () -> Unit, onInstances: () -> Unit) {
     val context = LocalContext.current
     val installedGame = remember { detectInstalledGame(context) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -259,6 +268,16 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
                     Column(Modifier.weight(1f)) {
                         Text("Minecraft", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                         Text("Bedrock Edition", color = TextMuted, fontSize = 13.sp)
+                    }
+                    OutlinedButton(
+                        onClick = onWallpaperClick,
+                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp),
+                        shape = RoundedCornerShape(11.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Accent)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(if (wallpaperSelected) "Wallpaper" else "Set wallpaper", fontSize = 10.sp, maxLines = 1)
                     }
                     Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.widthIn(max = 150.dp)) {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
