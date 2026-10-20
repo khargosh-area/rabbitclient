@@ -271,12 +271,6 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
                 Text(if (installedGame != null) "Launch Minecraft" else "Manage instances", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = onModules,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
-            ) { Text("Explore modules", color = Color.White) }
         }
     }
     Spacer(Modifier.height(20.dp))
@@ -315,26 +309,8 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
             )
         }
     }
-    Spacer(Modifier.height(20.dp))
-    SectionLabel("PERFORMANCE FIRST")
-    Spacer(Modifier.height(10.dp))
-    Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color(0xFF20392F), shape = RoundedCornerShape(14.dp)) {
-                Text("FPS", color = Accent, modifier = Modifier.padding(12.dp),
-                    fontSize = 15.sp, fontWeight = FontWeight.Black)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text("FPS Counter", fontWeight = FontWeight.Bold)
-                Text("Planned in-game HUD module", color = TextMuted, fontSize = 12.sp)
-                Text("Not connected to Minecraft yet", color = Color(0xFFFFD98A), fontSize = 11.sp)
-            }
-        }
-    }
-    Spacer(Modifier.height(16.dp))
-    Text("This is the launcher foundation. Demo toggles do not change gameplay or guarantee extra FPS.",
-        color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+
+
 }
 
 @Composable
