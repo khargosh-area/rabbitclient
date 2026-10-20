@@ -316,7 +316,7 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
             Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Rabbit Client", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("Launcher UI preview · isolated runtime still in development", color = TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
+                    Text("By KHARGOSH & CHATGPT · isolated runtime in development", color = TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
                 }
                 Text("v0.1.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
@@ -471,10 +471,25 @@ private fun SettingsScreen(onCurseForge: () -> Unit) {
             if (wallpaperUri != null) { Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = { wallpaperUri = null; context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().remove("wallpaper_uri").apply() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Reset wallpaper", color = Color.White) } }
             Spacer(Modifier.height(20.dp))
             Text("CurseForge", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("Discover Minecraft Bedrock add-ons. UI credit: Chat GPT implementer.", color = TextMuted, fontSize = 12.sp)
+            Text("Discover Minecraft Bedrock add-ons.", color = TextMuted, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onCurseForge, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
             Text("CurseForge opens inside Rabbit Client. No .levipack support.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+            Spacer(Modifier.height(20.dp))
+            Text("Authors & credits", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Surface(color = PanelRaised, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Accent, shape = RoundedCornerShape(10.dp)) {
+                        Text("R", color = Bg, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("KHARGOSH & CHATGPT", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        Text("Rabbit Client · UI implementation", color = TextMuted, fontSize = 11.sp)
+                    }
+                }
+            }
             Spacer(Modifier.height(20.dp))
             Text("Compatibility", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
