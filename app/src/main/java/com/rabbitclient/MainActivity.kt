@@ -247,12 +247,17 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
                 color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
             Spacer(Modifier.height(22.dp))
             Button(
-                onClick = onInstances,
+                onClick = {
+                    val launchIntent = installedGame?.let {
+                        context.packageManager.getLaunchIntentForPackage(it.packageName)
+                    }
+                    if (launchIntent != null) context.startActivity(launchIntent) else onInstances()
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
             ) {
-                Text("Manage instances", fontWeight = FontWeight.Bold)
+                Text(if (installedGame != null) "Launch Minecraft" else "Manage instances", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
