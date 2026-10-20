@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -180,7 +183,8 @@ private fun RabbitApp() {
                         }
                     )
                     "Instances" -> InstancesScreen()
-                    else -> SettingsScreen()
+                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Settings" })
+                    else -> SettingsScreen(onCurseForge = { page = "CurseForge" })
                 }
                 Spacer(Modifier.height(24.dp))
             }
@@ -437,7 +441,7 @@ private fun InstancesScreen() {
     }
 }
 @Composable
-private fun SettingsScreen() {
+private fun SettingsScreen(onCurseForge: () -> Unit) {
     val context = LocalContext.current
     var wallpaperUri by remember { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -469,8 +473,8 @@ private fun SettingsScreen() {
             Text("CurseForge", fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text("Discover Minecraft Bedrock add-ons. UI credit: Chat GPT implementer.", color = TextMuted, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.curseforge.com/minecraft-bedrock"))) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
-            Text("No .levipack support. CurseForge currently opens in your browser.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+            OutlinedButton(onClick = onCurseForge, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
+            Text("CurseForge opens inside Rabbit Client. No .levipack support.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             Spacer(Modifier.height(20.dp))
             Text("Compatibility", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
@@ -482,6 +486,35 @@ private fun SettingsScreen() {
         }
     }
 }
+@Composable
+private fun CurseForgeScreen(onBack: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = onBack, shape = RoundedCornerShape(12.dp)) { Text("← Back", color = Color.White) }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("CurseForge", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Minecraft Bedrock add-ons", color = TextMuted, fontSize = 11.sp)
+            }
+        }
+        AndroidView(
+            modifier = Modifier.fillMaxWidth().height(620.dp),
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    webViewClient = WebViewClient()
+                    loadUrl("https://www.curseforge.com/minecraft-bedrock")
+                }
+            },
+            update = { view ->
+                if (view.url == null) view.loadUrl("https://www.curseforge.com/minecraft-bedrock")
+            }
+        )
+        Text("CurseForge content is displayed from its website. Downloads and licensing follow CurseForge and each creator's terms.", color = TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
+    }
+}
+
 @Composable
 private fun SectionLabel(text: String) {
     Text(text, color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
