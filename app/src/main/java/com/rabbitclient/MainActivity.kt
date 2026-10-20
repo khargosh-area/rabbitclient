@@ -274,13 +274,6 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
         }
     }
     Spacer(Modifier.height(20.dp))
-    SectionLabel("YOUR WORKSPACE")
-    Spacer(Modifier.height(10.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MetricCard("MODULES", moduleList.size.toString(), "Planned", Modifier.weight(1f))
-        MetricCard("ENABLED", enabledCount.toString(), "Demo state", Modifier.weight(1f))
-    }
-    Spacer(Modifier.height(20.dp))
     SectionLabel("VERSION TARGET")
     Spacer(Modifier.height(10.dp))
     Surface(color = Panel, shape = RoundedCornerShape(20.dp),
