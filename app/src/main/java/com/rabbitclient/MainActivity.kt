@@ -377,27 +377,55 @@ private fun ModulesScreen(
 
 @Composable
 private fun InstancesScreen() {
-    Surface(color = Panel, shape = RoundedCornerShape(24.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(22.dp)) {
-            Text("No instances yet", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text("Instance detection, import/export, backups and launch actions are still being built.",
-                color = TextMuted, lineHeight = 20.sp)
-            Spacer(Modifier.height(16.dp))
-            Text("PLANNED", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            listOf("Installed game detection", "Instance profiles", "Safe backup and restore", "Launch compatibility checks").forEach {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
-                    Box(Modifier.size(6.dp).background(AccentDeep, CircleShape))
-                    Spacer(Modifier.width(10.dp))
-                    Text(it, color = Color.White, fontSize = 13.sp)
+    val context = LocalContext.current
+    val installedGame = remember { detectInstalledGame(context) }
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column {
+            Text("Game profiles", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(5.dp))
+            Text("Keep each Minecraft setup organized and easy to identify.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
+        }
+        Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Color(0xFF20392F), shape = RoundedCornerShape(15.dp)) { Text("MC", color = Accent, modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Installed Minecraft", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(installedGame?.versionName ?: "Not detected", color = TextMuted, fontSize = 12.sp)
+                    }
+                    Surface(color = if (installedGame != null) Color(0xFF20392F) else PanelRaised, shape = RoundedCornerShape(9.dp)) { Text(if (installedGame != null) "FOUND" else "MISSING", color = if (installedGame != null) Accent else TextMuted, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold) }
                 }
+                Spacer(Modifier.height(16.dp))
+                Text("Current installation is detected from Android's installed packages. Launching it does not create an isolated copy.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = { installedGame?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }?.let { context.startActivity(it) } }, enabled = installedGame != null, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg, disabledContainerColor = PanelRaised, disabledContentColor = TextMuted)) { Text("Launch installed game", fontWeight = FontWeight.Bold) }
+            }
+        }
+        SectionLabel("ISOLATED PROFILES")
+        Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp)) {
+                Box(Modifier.size(48.dp).background(PanelRaised, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) { Text("+", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Light) }
+                Spacer(Modifier.height(15.dp))
+                Text("Create a separate game profile", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(7.dp))
+                Text("A real isolated profile needs a managed Minecraft runtime, separate game data, and a verified launch path. This is not implemented in the current build yet.", color = TextMuted, fontSize = 12.sp, lineHeight = 19.sp)
+                Spacer(Modifier.height(14.dp))
+                Surface(color = Color(0xFF2C2519), shape = RoundedCornerShape(10.dp)) { Text("RUNTIME INTEGRATION REQUIRED", color = Color(0xFFFFD98A), modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp) }
+            }
+        }
+        SectionLabel("PLANNED PROFILE TOOLS")
+        Surface(color = Panel, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                WorkspaceRow("Import official game", "Prepare a user-provided game package", "I")
+                HorizontalDivider(color = Line)
+                WorkspaceRow("Worlds & packs", "Separate content by profile", "W")
+                HorizontalDivider(color = Line)
+                WorkspaceRow("Backup & restore", "Protect profile data before changes", "B")
             }
         }
     }
 }
-
 @Composable
 private fun SettingsScreen() {
     val context = LocalContext.current
