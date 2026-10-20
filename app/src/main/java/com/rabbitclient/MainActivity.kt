@@ -2,7 +2,12 @@ package com.rabbitclient
 
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -12,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewModule
@@ -20,6 +27,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -402,19 +413,39 @@ private fun InstancesScreen() {
 
 @Composable
 private fun SettingsScreen() {
+    val context = LocalContext.current
+    var wallpaperUri by remember { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
+    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+            wallpaperUri = uri.toString()
+            context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", wallpaperUri).apply()
+        }
+    }
+    val wallpaperBitmap: ImageBitmap? = remember(wallpaperUri) {
+        try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
+    }
     SectionLabel("PERSONALIZATION")
     Spacer(Modifier.height(10.dp))
-    Surface(color = Panel, shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
             Text("Obsidian + Mint", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Current visual direction", color = TextMuted, fontSize = 12.sp)
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(Bg, Panel, Accent, AccentDeep).forEach { color ->
-                    Box(Modifier.weight(1f).height(34.dp).background(color, RoundedCornerShape(10.dp)))
-                }
-            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(Bg, Panel, Accent, AccentDeep).forEach { color -> Box(Modifier.weight(1f).height(34.dp).background(color, RoundedCornerShape(10.dp))) } }
+            Spacer(Modifier.height(22.dp))
+            Text("Launcher wallpaper", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Choose a background image for your launcher.", color = TextMuted, fontSize = 12.sp)
+            if (wallpaperBitmap != null) { Spacer(Modifier.height(10.dp)); Image(bitmap = wallpaperBitmap, contentDescription = "Selected wallpaper", modifier = Modifier.fillMaxWidth().height(145.dp), contentScale = ContentScale.Crop) }
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { wallpaperPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)) { Icon(Icons.Default.Image, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Choose wallpaper", fontWeight = FontWeight.Bold) }
+            if (wallpaperUri != null) { Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = { wallpaperUri = null; context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().remove("wallpaper_uri").apply() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Reset wallpaper", color = Color.White) } }
+            Spacer(Modifier.height(20.dp))
+            Text("CurseForge", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Discover Minecraft Bedrock add-ons. UI credit: Chat GPT implementer.", color = TextMuted, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.curseforge.com/minecraft-bedrock"))) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
+            Text("No .levipack support. CurseForge currently opens in your browser.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             Spacer(Modifier.height(20.dp))
             Text("Compatibility", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
@@ -422,11 +453,10 @@ private fun SettingsScreen() {
             Spacer(Modifier.height(18.dp))
             Text("Integration status", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
-            Text("The current module controls are demo state only. They do not inject code, modify Minecraft, or guarantee performance improvements.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("The current module controls are demo state only. They do not modify Minecraft or guarantee performance improvements.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
 }
-
 @Composable
 private fun SectionLabel(text: String) {
     Text(text, color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
