@@ -451,6 +451,30 @@ private fun InstancesScreen() {
     }
 }
 @Composable
+private fun WorkspaceRow(title: String, subtitle: String, glyph: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(color = PanelRaised, shape = RoundedCornerShape(10.dp)) {
+            Text(
+                glyph,
+                color = Accent,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(Modifier.height(3.dp))
+            Text(subtitle, color = TextMuted, fontSize = 11.sp, lineHeight = 15.sp)
+        }
+        Icon(Icons.Default.Tune, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
 private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -> Unit, onCurseForge: () -> Unit) {
     val context = LocalContext.current
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
