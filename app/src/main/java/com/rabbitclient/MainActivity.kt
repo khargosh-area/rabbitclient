@@ -1,6 +1,7 @@
 package com.rabbitclient
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -21,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -176,7 +178,30 @@ private fun navColors() = NavigationBarItemDefaults.colors(
 )
 
 @Composable
+private data class InstalledGame(val packageName: String, val versionName: String)
+
+private fun detectInstalledGame(context: Context): InstalledGame? {
+    val candidates = listOf(
+        "com.mojang.minecraftpe",
+        "com.mojang.minecraftpe.beta",
+        "com.mojang.minecraftpe.preview"
+    )
+    for (packageName in candidates) {
+        try {
+            val info = context.packageManager.getPackageInfo(packageName, 0)
+            val version = info.versionName ?: "Unknown"
+            return InstalledGame(packageName, version)
+        } catch (_: Exception) {
+            // Package is not installed or isn't visible to this app.
+        }
+    }
+    return null
+}
+
+@Composable
 private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: () -> Unit) {
+    val context = LocalContext.current
+    val installedGame = remember { detectInstalledGame(context) }
     Surface(
         color = Panel,
         shape = RoundedCornerShape(28.dp),
@@ -234,7 +259,11 @@ next session.", color = Color.White, fontSize = 31.sp,
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Minecraft Bedrock", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("1.21.90+ • including future versions", color = TextMuted, fontSize = 12.sp)
+                    Text(
+                        installedGame?.let { "Detected version ${it.versionName}" } ?: "No installed game detected",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
                 }
                 Surface(color = Color(0xFF352D1C), shape = CircleShape) {
                     Text("TARGET", color = Color(0xFFFFD98A),
@@ -243,8 +272,11 @@ next session.", color = Color.White, fontSize = 31.sp,
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text("Version detection and runtime compatibility checks are not implemented yet. Newer versions must be verified before being marked supported.",
-                color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text(
+                installedGame?.let { GameVersion.targetRangeStatus(it.versionName) + " • " + it.packageName }
+                    ?: "Target: 1.21.90+. Install detection depends on Android package visibility. Runtime compatibility is not verified.",
+                color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp
+            )
         }
     }
     Spacer(Modifier.height(20.dp))
