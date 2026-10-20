@@ -4,11 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -23,10 +25,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Background = Color(0xFF0B0E12)
-private val Surface = Color(0xFF151A21)
-private val Mint = Color(0xFF9BE7C4)
-private val Muted = Color(0xFF9AA5B1)
+private val Bg = Color(0xFF080B10)
+private val Panel = Color(0xFF121821)
+private val PanelRaised = Color(0xFF19222D)
+private val Accent = Color(0xFFB7F7D5)
+private val AccentDeep = Color(0xFF62D9A0)
+private val TextMuted = Color(0xFF91A0B2)
+private val Line = Color(0xFF263341)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,131 +40,303 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class ModuleItem(val name: String, val detail: String, val category: String)
+private data class ModuleItem(
+    val id: String,
+    val name: String,
+    val detail: String,
+    val category: String,
+    val planned: Boolean = true
+)
 
-private val modules = listOf(
-    ModuleItem("FPS Counter", "Show frame rate", "HUD"),
-    ModuleItem("Coordinates", "Position overlay", "HUD"),
-    ModuleItem("CPS Counter", "Clicks per second", "HUD"),
-    ModuleItem("Armor HUD", "Equipment status", "HUD"),
-    ModuleItem("Potion HUD", "Active effects", "HUD"),
-    ModuleItem("Fullbright", "Brightness option", "Visual"),
-    ModuleItem("Zoom", "Quick zoom control", "Utility"),
-    ModuleItem("Sprint Toggle", "Sprint control", "Utility"),
-    ModuleItem("FOV Controls", "Field of view presets", "Visual")
+private val moduleList = listOf(
+    ModuleItem("fps", "FPS Counter", "Frame-rate overlay", "HUD"),
+    ModuleItem("coords", "Coordinates", "Player position overlay", "HUD"),
+    ModuleItem("cps", "CPS Counter", "Click-rate display", "HUD"),
+    ModuleItem("armor", "Armor HUD", "Equipment status", "HUD"),
+    ModuleItem("potion", "Potion HUD", "Active effects display", "HUD"),
+    ModuleItem("fullbright", "Fullbright", "Brightness control", "Visual"),
+    ModuleItem("zoom", "Zoom", "Quick zoom control", "Utility"),
+    ModuleItem("sprint", "Sprint Toggle", "Sprint control", "Utility"),
+    ModuleItem("fov", "FOV Controls", "Field-of-view presets", "Visual")
 )
 
 @Composable
 private fun RabbitApp() {
     var page by remember { mutableStateOf("Home") }
-    var selectedCategory by remember { mutableStateOf("All") }
+    var category by remember { mutableStateOf("All") }
     var enabled by remember { mutableStateOf(setOf<String>()) }
+
     MaterialTheme(
         colorScheme = darkColorScheme(
-            background = Background,
-            surface = Surface,
-            primary = Mint,
-            onBackground = Color.White,
-            onSurface = Color.White
+            primary = Accent,
+            onPrimary = Bg,
+            secondary = AccentDeep,
+            background = Bg,
+            surface = Panel,
+            onBackground = Color(0xFFF4F7FA),
+            onSurface = Color(0xFFF4F7FA),
+            surfaceVariant = PanelRaised,
+            onSurfaceVariant = TextMuted
         )
     ) {
         Scaffold(
-            containerColor = Background,
+            containerColor = Bg,
             bottomBar = {
-                NavigationBar(containerColor = Surface, contentColor = Muted) {
-                    NavigationBarItem(selected = page == "Home", onClick = { page = "Home" },
-                        icon = { Icon(Icons.Default.Home, contentDescription = null) }, label = { Text("Home") })
-                    NavigationBarItem(selected = page == "Modules", onClick = { page = "Modules" },
-                        icon = { Icon(Icons.Default.ViewModule, contentDescription = null) }, label = { Text("Modules") })
-                    NavigationBarItem(selected = page == "Instances", onClick = { page = "Instances" },
-                        icon = { Icon(Icons.Default.Tune, contentDescription = null) }, label = { Text("Instances") })
-                    NavigationBarItem(selected = page == "Settings", onClick = { page = "Settings" },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) }, label = { Text("Settings") })
+                NavigationBar(
+                    containerColor = Color(0xFF0D1219),
+                    contentColor = TextMuted,
+                    tonalElevation = 0.dp
+                ) {
+                    NavigationBarItem(
+                        selected = page == "Home",
+                        onClick = { page = "Home" },
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        label = { Text("Home") },
+                        colors = navColors()
+                    )
+                    NavigationBarItem(
+                        selected = page == "Modules",
+                        onClick = { page = "Modules" },
+                        icon = { Icon(Icons.Default.ViewModule, contentDescription = null) },
+                        label = { Text("Modules") },
+                        colors = navColors()
+                    )
+                    NavigationBarItem(
+                        selected = page == "Instances",
+                        onClick = { page = "Instances" },
+                        icon = { Icon(Icons.Default.Tune, contentDescription = null) },
+                        label = { Text("Instances") },
+                        colors = navColors()
+                    )
+                    NavigationBarItem(
+                        selected = page == "Settings",
+                        onClick = { page = "Settings" },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        label = { Text("Settings") },
+                        colors = navColors()
+                    )
                 }
             }
-        ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-                Spacer(Modifier.height(24.dp))
+        ) { insets ->
+            Column(
+                Modifier.fillMaxSize()
+                    .padding(insets)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+            ) {
+                Spacer(Modifier.height(22.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("RABBIT CLIENT", color = Mint, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text(page, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Surface(shape = RoundedCornerShape(16.dp), color = Accent) {
+                        Text("R", modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
+                            color = Bg, fontWeight = FontWeight.Black, fontSize = 22.sp)
                     }
-                    Surface(color = Surface, shape = RoundedCornerShape(14.dp)) {
-                        Text("v0.1.0", color = Muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("RABBIT CLIENT", color = Accent, fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold, letterSpacing = 2.1.sp)
+                        Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
+                        Text("v0.1.0", color = TextMuted,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
                     }
                 }
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(24.dp))
+
                 when (page) {
-                    "Home" -> {
-                        Surface(color = Surface, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text("Your Minecraft space.", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Text("A fresh launcher foundation with an independent module framework.", color = Muted)
-                                Spacer(Modifier.height(18.dp))
-                                Button(onClick = { page = "Instances" }, colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Background), modifier = Modifier.fillMaxWidth()) {
-                                    Text("Manage instances", fontWeight = FontWeight.Bold)
-                                }
-                            }
+                    "Home" -> HomeScreen(
+                        enabledCount = enabled.size,
+                        onModules = { page = "Modules" },
+                        onInstances = { page = "Instances" }
+                    )
+                    "Modules" -> ModulesScreen(
+                        category = category,
+                        onCategory = { category = it },
+                        enabled = enabled,
+                        onEnabled = { id, isOn ->
+                            enabled = if (isOn) enabled + id else enabled - id
                         }
-                        Spacer(Modifier.height(16.dp))
-                        Text("QUICK OVERVIEW", color = Muted, fontSize = 11.sp, letterSpacing = 1.5.sp)
-                        Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SummaryCard("Modules", modules.size.toString(), Modifier.weight(1f))
-                            SummaryCard("Instances", "0", Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(18.dp))
-                        Text("BUILD STATUS", color = Muted, fontSize = 11.sp, letterSpacing = 1.5.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Launcher UI prototype. In-game modules are not connected to Minecraft yet.", color = Muted, fontSize = 13.sp)
-                    }
-                    "Modules" -> {
-                        Text("MODULE LIBRARY", color = Muted, fontSize = 11.sp, letterSpacing = 1.5.sp)
-                        Spacer(Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("All", "HUD", "Visual", "Utility").forEach { category ->
-                                FilterChip(selected = selectedCategory == category, onClick = { selectedCategory = category }, label = { Text(category) })
-                            }
-                        }
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
-                            items(modules.filter { selectedCategory == "All" || it.category == selectedCategory }) { module ->
-                                Surface(color = Surface, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(module.name, fontWeight = FontWeight.SemiBold)
-                                            Text(module.detail, color = Muted, fontSize = 12.sp)
-                                            Text(module.category.uppercase(), color = Mint, fontSize = 10.sp)
-                                        }
-                                        Switch(checked = module.name in enabled, onCheckedChange = { checked ->
-                                            enabled = if (checked) enabled + module.name else enabled - module.name
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    "Instances" -> {
-                        Surface(color = Surface, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text("No instances added", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Instance discovery, import/export, and launch integration are not implemented in this starter build.", color = Muted)
-                            }
-                        }
-                    }
-                    else -> {
-                        Surface(color = Surface, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text("Appearance", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                Text("Dark theme • Mint accent", color = Muted)
-                                Spacer(Modifier.height(16.dp))
-                                Text("Integration status", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                Text("Module switches currently store local demo state only; they do not affect gameplay.", color = Muted)
-                            }
-                        }
-                    }
+                    )
+                    "Instances" -> InstancesScreen()
+                    else -> SettingsScreen()
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun navColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = Bg,
+    selectedTextColor = Accent,
+    indicatorColor = Accent,
+    unselectedIconColor = TextMuted,
+    unselectedTextColor = TextMuted
+)
+
+@Composable
+private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: () -> Unit) {
+    Surface(
+        color = Panel,
+        shape = RoundedCornerShape(28.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = Color(0xFF20392F), shape = RoundedCornerShape(10.dp)) {
+                    Text("BEDROCK / MCPE", color = Accent,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                Text("IN DEVELOPMENT", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Built for your
+next session.", color = Color.White, fontSize = 31.sp,
+                lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(10.dp))
+            Text("A clean, performance-minded home for your Minecraft setup.",
+                color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
+            Spacer(Modifier.height(22.dp))
+            Button(
+                onClick = onInstances,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+            ) {
+                Text("Manage instances", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onModules,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+            ) { Text("Explore modules", color = Color.White) }
+        }
+    }
+    Spacer(Modifier.height(20.dp))
+    SectionLabel("YOUR WORKSPACE")
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        MetricCard("MODULES", moduleList.size.toString(), "Planned", Modifier.weight(1f))
+        MetricCard("ENABLED", enabledCount.toString(), "Demo state", Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(20.dp))
+    SectionLabel("VERSION TARGET")
+    Spacer(Modifier.height(10.dp))
+    Surface(color = Panel, shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Minecraft Bedrock", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("1.21.90+ • including future versions", color = TextMuted, fontSize = 12.sp)
+                }
+                Surface(color = Color(0xFF352D1C), shape = CircleShape) {
+                    Text("TARGET", color = Color(0xFFFFD98A),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Version detection and runtime compatibility checks are not implemented yet. Newer versions must be verified before being marked supported.",
+                color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+    }
+    Spacer(Modifier.height(20.dp))
+    SectionLabel("PERFORMANCE FIRST")
+    Spacer(Modifier.height(10.dp))
+    Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color(0xFF20392F), shape = RoundedCornerShape(14.dp)) {
+                Text("FPS", color = Accent, modifier = Modifier.padding(12.dp),
+                    fontSize = 15.sp, fontWeight = FontWeight.Black)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("FPS Counter", fontWeight = FontWeight.Bold)
+                Text("Planned in-game HUD module", color = TextMuted, fontSize = 12.sp)
+                Text("Not connected to Minecraft yet", color = Color(0xFFFFD98A), fontSize = 11.sp)
+            }
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+    Text("This is the launcher foundation. Demo toggles do not change gameplay or guarantee extra FPS.",
+        color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+}
+
+@Composable
+private fun ModulesScreen(
+    category: String,
+    onCategory: (String) -> Unit,
+    enabled: Set<String>,
+    onEnabled: (String, Boolean) -> Unit
+) {
+    SectionLabel("MODULE LIBRARY")
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        listOf("All", "HUD", "Visual", "Utility").forEach {
+            FilterChip(
+                selected = category == it,
+                onClick = { onCategory(it) },
+                label = { Text(it) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Accent,
+                    selectedLabelColor = Bg,
+                    labelColor = TextMuted
+                )
+            )
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text("Preview switches only. Real module support needs a verified in-game integration.",
+        color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
+    Spacer(Modifier.height(12.dp))
+    moduleList.filter { category == "All" || it.category == category }.forEach { item ->
+        Surface(color = Panel, shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp)) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
+                    Text(item.category.take(1), color = Accent, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(item.name, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(3.dp))
+                    Text(item.detail, color = TextMuted, fontSize = 12.sp)
+                    Text("PLANNED • ${item.category.uppercase()}", color = AccentDeep,
+                        fontSize = 9.sp, letterSpacing = 1.sp)
+                }
+                Switch(checked = item.id in enabled,
+                    onCheckedChange = { onEnabled(item.id, it) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstancesScreen() {
+    Surface(color = Panel, shape = RoundedCornerShape(24.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(22.dp)) {
+            Text("No instances yet", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Instance detection, import/export, backups and launch actions are still being built.",
+                color = TextMuted, lineHeight = 20.sp)
+            Spacer(Modifier.height(16.dp))
+            Text("PLANNED", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            listOf("Installed game detection", "Instance profiles", "Safe backup and restore", "Launch compatibility checks").forEach {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+                    Box(Modifier.size(6.dp).background(AccentDeep, CircleShape))
+                    Spacer(Modifier.width(10.dp))
+                    Text(it, color = Color.White, fontSize = 13.sp)
                 }
             }
         }
@@ -167,11 +344,46 @@ private fun RabbitApp() {
 }
 
 @Composable
-private fun SummaryCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(color = Surface, shape = RoundedCornerShape(20.dp), modifier = modifier) {
+private fun SettingsScreen() {
+    SectionLabel("PERSONALIZATION")
+    Spacer(Modifier.height(10.dp))
+    Surface(color = Panel, shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
+            Text("Obsidian + Mint", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Current visual direction", color = TextMuted, fontSize = 12.sp)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(Bg, Panel, Accent, AccentDeep).forEach { color ->
+                    Box(Modifier.weight(1f).height(34.dp).background(color, RoundedCornerShape(10.dp)))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Compatibility", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            Text("Target: Bedrock 1.21.90 and newer. Future releases require runtime checks and testing; launcher support and in-game module support are separate.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(18.dp))
+            Text("Integration status", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(5.dp))
+            Text("The current module controls are demo state only. They do not inject code, modify Minecraft, or guarantee performance improvements.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
+}
+
+@Composable
+private fun MetricCard(label: String, value: String, caption: String, modifier: Modifier = Modifier) {
+    Surface(color = Panel, shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = modifier) {
         Column(Modifier.padding(16.dp)) {
-            Text(value, color = Mint, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Text(label, color = Muted, fontSize = 13.sp)
+            Text(label, color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Spacer(Modifier.height(7.dp))
+            Text(value, color = Accent, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            Text(caption, color = TextMuted, fontSize = 11.sp)
         }
     }
 }
