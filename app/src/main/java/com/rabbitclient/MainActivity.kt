@@ -142,24 +142,28 @@ private fun RabbitApp() {
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
             ) {
-                Spacer(Modifier.height(22.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(16.dp), color = Accent) {
-                        Text("R", modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
-                            color = Bg, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                if (page != "Home") {
+                    Spacer(Modifier.height(22.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(16.dp), color = Accent) {
+                            Text("R", modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
+                                color = Bg, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("RABBIT CLIENT", color = Accent, fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold, letterSpacing = 2.1.sp)
+                            Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
+                            Text("v0.1.0", color = TextMuted,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
+                        }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("RABBIT CLIENT", color = Accent, fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold, letterSpacing = 2.1.sp)
-                        Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
-                        Text("v0.1.0", color = TextMuted,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
-                    }
+                    Spacer(Modifier.height(24.dp))
+                } else {
+                    Spacer(Modifier.height(8.dp))
                 }
-                Spacer(Modifier.height(24.dp))
 
                 when (page) {
                     "Home" -> HomeScreen(
