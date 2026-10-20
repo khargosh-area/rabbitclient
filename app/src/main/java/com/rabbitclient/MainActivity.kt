@@ -6,8 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,7 +64,14 @@ private val moduleList = listOf(
 private fun RabbitApp() {
     var page by remember { mutableStateOf("Home") }
     var category by remember { mutableStateOf("All") }
-    var enabled by remember { mutableStateOf(setOf<String>()) }
+    val context = LocalContext.current
+    var enabled by remember(context) { mutableStateOf(loadEnabledModules(context)) }
+
+    // Preview preferences survive app restarts. These are UI preferences only;
+    // they are not sent to Minecraft until a real runtime adapter exists.
+    LaunchedEffect(enabled) {
+        saveEnabledModules(context, enabled)
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -176,6 +181,23 @@ private fun navColors() = NavigationBarItemDefaults.colors(
     unselectedIconColor = TextMuted,
     unselectedTextColor = TextMuted
 )
+
+private const val MODULE_PREFERENCES = "rabbit_module_preferences"
+private const val ENABLED_MODULES_KEY = "enabled_preview_modules"
+
+private fun loadEnabledModules(context: Context): Set<String> =
+    context.getSharedPreferences(MODULE_PREFERENCES, Context.MODE_PRIVATE)
+        .getStringSet(ENABLED_MODULES_KEY, emptySet())
+        ?.toSet()
+        .orEmpty()
+        .intersect(moduleList.map { it.id }.toSet())
+
+private fun saveEnabledModules(context: Context, enabled: Set<String>) {
+    context.getSharedPreferences(MODULE_PREFERENCES, Context.MODE_PRIVATE)
+        .edit()
+        .putStringSet(ENABLED_MODULES_KEY, enabled.toSet())
+        .apply()
+}
 
 private data class InstalledGame(val packageName: String, val versionName: String)
 
@@ -340,7 +362,7 @@ private fun ModulesScreen(
                     Text(item.name, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(3.dp))
                     Text(item.detail, color = TextMuted, fontSize = 12.sp)
-                    Text("PLANNED • ${item.category.uppercase()}", color = AccentDeep,
+                    Text("${if (item.id in enabled) "PREVIEW ON" else "PLANNED"} • ${item.category.uppercase()}", color = AccentDeep,
                         fontSize = 9.sp, letterSpacing = 1.sp)
                 }
                 Switch(checked = item.id in enabled,
