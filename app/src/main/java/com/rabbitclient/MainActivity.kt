@@ -177,7 +177,6 @@ private fun navColors() = NavigationBarItemDefaults.colors(
     unselectedTextColor = TextMuted
 )
 
-@Composable
 private data class InstalledGame(val packageName: String, val versionName: String)
 
 private fun detectInstalledGame(context: Context): InstalledGame? {
@@ -219,8 +218,7 @@ private fun HomeScreen(enabledCount: Int, onModules: () -> Unit, onInstances: ()
                 Text("IN DEVELOPMENT", color = TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
             }
             Spacer(Modifier.height(20.dp))
-            Text("Built for your
-next session.", color = Color.White, fontSize = 31.sp,
+            Text("Built for your\\nnext session.", color = Color.White, fontSize = 31.sp,
                 lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold)
             Spacer(Modifier.height(10.dp))
             Text("A clean, performance-minded home for your Minecraft setup.",
