@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val Bg = Color(0xFF080B10)
-private val Panel = Color(0xFF121821)
-private val PanelRaised = Color(0xFF19222D)
+private val Panel = Color(0xCC121821)
+private val PanelRaised = Color(0xD919222D)
 private val Accent = Color(0xFFB7F7D5)
 private val AccentDeep = Color(0xFF62D9A0)
 private val TextMuted = Color(0xFF91A0B2)
@@ -80,6 +80,10 @@ private fun RabbitApp() {
     var category by remember { mutableStateOf("All") }
     val context = LocalContext.current
     var enabled by remember(context) { mutableStateOf(loadEnabledModules(context)) }
+    var wallpaperUri by remember(context) { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
+    val fullWallpaper: ImageBitmap? = remember(wallpaperUri) {
+        try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
+    }
 
     // Preview preferences survive app restarts. These are UI preferences only;
     // they are not sent to Minecraft until a real runtime adapter exists.
@@ -100,11 +104,16 @@ private fun RabbitApp() {
             onSurfaceVariant = TextMuted
         )
     ) {
+        Box(Modifier.fillMaxSize().background(Bg)) {
+            if (fullWallpaper != null) {
+                Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Box(Modifier.fillMaxSize().background(Color(0x66060A10)))
+            }
         Scaffold(
-            containerColor = Bg,
+            containerColor = Color.Transparent,
             bottomBar = {
                 NavigationBar(
-                    containerColor = Color(0xFF0D1219),
+                    containerColor = Color(0xCC0D1219),
                     contentColor = TextMuted,
                     tonalElevation = 0.dp
                 ) {
@@ -184,10 +193,11 @@ private fun RabbitApp() {
                     )
                     "Instances" -> InstancesScreen()
                     "CurseForge" -> CurseForgeScreen(onBack = { page = "Settings" })
-                    else -> SettingsScreen(onCurseForge = { page = "CurseForge" })
+                    else -> SettingsScreen(wallpaperUri = wallpaperUri, onWallpaperChange = { wallpaperUri = it }, onCurseForge = { page = "CurseForge" })
                 }
                 Spacer(Modifier.height(24.dp))
             }
+        }
         }
     }
 }
@@ -441,14 +451,13 @@ private fun InstancesScreen() {
     }
 }
 @Composable
-private fun SettingsScreen(onCurseForge: () -> Unit) {
+private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -> Unit, onCurseForge: () -> Unit) {
     val context = LocalContext.current
-    var wallpaperUri by remember { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
-            wallpaperUri = uri.toString()
-            context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", wallpaperUri).apply()
+            onWallpaperChange(uri.toString())
+            context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", uri.toString()).apply()
         }
     }
     val wallpaperBitmap: ImageBitmap? = remember(wallpaperUri) {
@@ -468,7 +477,7 @@ private fun SettingsScreen(onCurseForge: () -> Unit) {
             if (wallpaperBitmap != null) { Spacer(Modifier.height(10.dp)); Image(bitmap = wallpaperBitmap, contentDescription = "Selected wallpaper", modifier = Modifier.fillMaxWidth().height(145.dp), contentScale = ContentScale.Crop) }
             Spacer(Modifier.height(12.dp))
             Button(onClick = { wallpaperPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)) { Icon(Icons.Default.Image, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Choose wallpaper", fontWeight = FontWeight.Bold) }
-            if (wallpaperUri != null) { Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = { wallpaperUri = null; context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().remove("wallpaper_uri").apply() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Reset wallpaper", color = Color.White) } }
+            if (wallpaperUri != null) { Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = { onWallpaperChange(null); context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().remove("wallpaper_uri").apply() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Reset wallpaper", color = Color.White) } }
             Spacer(Modifier.height(20.dp))
             Text("CurseForge", fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text("Discover Minecraft Bedrock add-ons.", color = TextMuted, fontSize = 12.sp)
