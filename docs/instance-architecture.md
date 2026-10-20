@@ -38,3 +38,9 @@ A real isolated instance requires a compatible, legally distributable game/runti
 ## Current status
 
 The current app can detect some installed Minecraft package names and launch the detected app. It does **not** yet create a separate game installation, isolate worlds/packs, provide Microsoft sign-in, or run in-game modules. The instance UI must keep these distinctions explicit.
+
+## Evidence from the user's Flarial screenshot
+
+The screenshot shows the normal Minecraft app and Rabbit Client as separate recent-app cards, with a Flarial-branded screen also visible. This confirms the desired user experience: launching from the client should enter a client-managed game environment distinct from the normal Minecraft app. It does not, by itself, prove how Flarial implements that environment internally.
+
+Implementation requirement: investigate the actual Flarial Android runtime/package architecture before choosing a strategy. Compare package IDs, installed APK/runtime components, app-private data ownership, and launch intents using lawful local inspection and on-device observations. Do not infer that a second recent-app card alone proves separate worlds, account storage, or pack storage. Rabbit must pass the acceptance checklist above before advertising true isolation.
