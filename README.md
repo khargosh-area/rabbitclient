@@ -2,6 +2,12 @@
 
 Rabbit Client is an Android launcher project for Minecraft Bedrock with an original, performance-minded UI and a separate client-integration layer.
 
+## Authors
+
+**KHARGOSH & CHATGPT**
+
+Rabbit Client's current interface is an original implementation inspired by the general launcher workflow used by LeviLauncher: game/version header, launch action, module preview, and content-management shortcuts. It is not the LeviLauncher application or a claim of identical functionality. Third-party code and assets must retain their applicable licenses and notices.
+
 ## Current status
 
 **Version:** 0.1.0 starter  
