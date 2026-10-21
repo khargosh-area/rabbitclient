@@ -261,7 +261,7 @@ private fun RabbitApp() {
 @Composable
 private fun DockItem(destination: DockDestination, selected: Boolean, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.weight(1f).clickable(onClick = onClick).padding(horizontal = 1.dp),
+        modifier = Modifier.width(49.dp).clickable(onClick = onClick).padding(horizontal = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
