@@ -239,21 +239,27 @@ private fun RabbitApp() {
 
                 when (page) {
                     "Home" -> HomeScreen(
-                        enabledCount = enabled.size,
+                        installedGames = installedGames,
+                        selectedGamePackage = selectedGamePackage,
                         wallpaperSelected = wallpaperUri != null,
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
-                        onModules = { page = "Modules" },
-                        onInstances = { page = "Instances" }
-                    )
-                    "Modules" -> ModulesScreen(
-                        category = category,
-                        onCategory = { category = it },
-                        enabled = enabled,
-                        onEnabled = { id, isOn ->
-                            enabled = if (isOn) enabled + id else enabled - id
+                        onInstances = { page = "Instances" },
+                        onCurseForge = { page = "CurseForge" },
+                        onLaunch = {
+                            val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
+                            val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
+                            if (intent != null) context.startActivity(intent) else page = "Instances"
                         }
                     )
-                    "Instances" -> InstancesScreen()
+                    "Instances" -> InstancesScreen(
+                        installedGames = installedGames,
+                        selectedGamePackage = selectedGamePackage,
+                        onSelect = { selectedGamePackage = it },
+                        onLaunch = { game ->
+                            context.packageManager.getLaunchIntentForPackage(game.packageName)?.let { context.startActivity(it) }
+                        },
+                        onRefresh = { installedGames = detectInstalledGames(context) }
+                    )
                     "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" })
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
@@ -264,11 +270,17 @@ private fun RabbitApp() {
                         onThemeChange = { selectedTheme = it }
                     )
                     else -> HomeScreen(
-                        enabledCount = enabled.size,
+                        installedGames = installedGames,
+                        selectedGamePackage = selectedGamePackage,
                         wallpaperSelected = wallpaperUri != null,
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
-                        onModules = { page = "Modules" },
-                        onInstances = { page = "Instances" }
+                        onInstances = { page = "Instances" },
+                        onCurseForge = { page = "CurseForge" },
+                        onLaunch = {
+                            val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
+                            val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
+                            if (intent != null) context.startActivity(intent) else page = "Instances"
+                        }
                     )
                 }
                 if (page != "CurseForge") Spacer(Modifier.height(24.dp))
