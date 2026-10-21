@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +100,6 @@ private data class DockDestination(val label: String, val page: String, val icon
 
 private val dockDestinations = listOf(
     DockDestination("Launch", "Home", Icons.Default.Home),
-    DockDestination("Modules", "Modules", Icons.Default.ViewModule),
     DockDestination("Instances", "Instances", Icons.Default.Tune),
     DockDestination("CurseForge", "CurseForge", Icons.Default.Language),
     DockDestination("About", "About", Icons.Default.Info),
@@ -123,38 +121,30 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class ModuleItem(
-    val id: String,
-    val name: String,
-    val detail: String,
-    val category: String,
-    val planned: Boolean = true
-)
-
-private val moduleList = listOf(
-    ModuleItem("fps", "FPS Counter", "Frame-rate overlay", "HUD"),
-    ModuleItem("coords", "Coordinates", "Player position overlay", "HUD"),
-    ModuleItem("cps", "CPS Counter", "Click-rate display", "HUD"),
-    ModuleItem("armor", "Armor HUD", "Equipment status", "HUD"),
-    ModuleItem("potion", "Potion HUD", "Active effects display", "HUD"),
-    ModuleItem("fullbright", "Fullbright", "Brightness control", "Visual"),
-    ModuleItem("zoom", "Zoom", "Quick zoom control", "Utility"),
-    ModuleItem("sprint", "Sprint Toggle", "Sprint control", "Utility"),
-    ModuleItem("fov", "FOV Controls", "Field-of-view presets", "Visual")
-)
-
 @Composable
 private fun RabbitApp() {
     var page by remember { mutableStateOf("Home") }
-    var category by remember { mutableStateOf("All") }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
+    var installedGames by remember(context) { mutableStateOf(detectInstalledGames(context)) }
+    var selectedGamePackage by remember(context) {
+        val saved = preferences.getString("selected_game_package", null)
+        mutableStateOf<String?>(saved?.takeIf { pkg -> installedGames.any { it.packageName == pkg } } ?: installedGames.firstOrNull()?.packageName)
+    }
+    LaunchedEffect(selectedGamePackage) {
+        if (selectedGamePackage == null) preferences.edit().remove("selected_game_package").apply()
+        else preferences.edit().putString("selected_game_package", selectedGamePackage).apply()
+    }
+    LaunchedEffect(installedGames) {
+        if (installedGames.none { it.packageName == selectedGamePackage }) {
+            selectedGamePackage = installedGames.firstOrNull()?.packageName
+        }
+    }
     var selectedTheme by remember(context) { mutableStateOf((preferences.getString("theme_name", "Mint") ?: "Mint").let { saved -> if (RABBIT_ACCENT_PRESETS.any { it.name == saved }) saved else "Mint" }) }
     LaunchedEffect(selectedTheme) {
         preferences.edit().putString("theme_name", selectedTheme).apply()
         applyRabbitTheme(selectedTheme)
     }
-    var enabled by remember(context) { mutableStateOf(loadEnabledModules(context)) }
     var wallpaperUri by remember(context) { mutableStateOf(context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).getString("wallpaper_uri", null)) }
     val homeWallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -165,12 +155,6 @@ private fun RabbitApp() {
     }
     val fullWallpaper: ImageBitmap? = remember(wallpaperUri) {
         try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
-    }
-
-    // Preview preferences survive app restarts. These are UI preferences only;
-    // they are not sent to Minecraft until a real runtime adapter exists.
-    LaunchedEffect(enabled) {
-        saveEnabledModules(context, enabled)
     }
 
     MaterialTheme(
