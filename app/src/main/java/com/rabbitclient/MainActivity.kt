@@ -165,24 +165,29 @@ private fun RabbitApp() {
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-                    shape = RoundedCornerShape(30.dp),
-                    color = Color(0xF2080B10),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    shadowElevation = 12.dp
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Surface(
+                        modifier = Modifier.wrapContentWidth().padding(horizontal = 10.dp),
+                        shape = RoundedCornerShape(34.dp),
+                        color = Color(0xF2080B10),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                        shadowElevation = 16.dp
                     ) {
-                        dockDestinations.forEach { destination ->
-                            DockItem(
-                                destination = destination,
-                                selected = page == destination.page,
-                                onClick = { page = destination.page }
-                            )
+                        Row(
+                            Modifier.wrapContentWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            dockDestinations.forEach { destination ->
+                                DockItem(
+                                    destination = destination,
+                                    selected = page == destination.page,
+                                    onClick = { page = destination.page }
+                                )
+                            }
                         }
                     }
                 }
@@ -261,20 +266,23 @@ private fun RabbitApp() {
 @Composable
 private fun DockItem(destination: DockDestination, selected: Boolean, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.width(49.dp).clickable(onClick = onClick).padding(horizontal = 1.dp),
+        modifier = Modifier.width(52.dp).clickable(onClick = onClick).padding(horizontal = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
-            modifier = Modifier.size(42.dp)
-                .background(if (selected) Accent else PanelRaised, CircleShape),
+            modifier = Modifier.size(if (selected) 44.dp else 42.dp)
+                .background(
+                    if (selected) Accent else Color(0xFF171D27),
+                    CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = destination.icon,
                 contentDescription = destination.label,
-                tint = if (selected) Bg else TextMuted,
-                modifier = Modifier.size(20.dp)
+                tint = if (selected) Bg else Color(0xFFB4C0CF),
+                modifier = Modifier.size(if (selected) 21.dp else 19.dp)
             )
         }
         Text(
