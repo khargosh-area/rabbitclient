@@ -756,6 +756,9 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
     var selectedCategory by remember { mutableStateOf("All") }
     var pageUrl by remember { mutableStateOf(curseForgeUrl("", "All")) }
     var browser by remember { mutableStateOf<WebView?>(null) }
+    LaunchedEffect(pageUrl) {
+        browser?.loadUrl(pageUrl)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
@@ -793,7 +796,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                         )
                     )
                     Button(
-                        onClick = { pageUrl = curseForgeUrl(query, selectedCategory); browser?.loadUrl(pageUrl) },
+                        onClick = { pageUrl = curseForgeUrl(query, selectedCategory) },
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
@@ -812,7 +815,6 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                             modifier = Modifier.clickable {
                                 selectedCategory = item
                                 pageUrl = curseForgeUrl(query, item)
-                                browser?.loadUrl(pageUrl)
                             }
                         ) {
                             Text(item, color = if (selected) Bg else TextMuted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp))
@@ -840,9 +842,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                     loadUrl(pageUrl)
                 }
             },
-            update = { view ->
-                if (view.url != pageUrl) view.loadUrl(pageUrl)
-            }
+            update = { /* URL changes are handled by LaunchedEffect above. */ }
         )
     }
 }
