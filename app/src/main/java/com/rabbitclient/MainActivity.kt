@@ -338,7 +338,9 @@ private fun detectInstalledGames(context: Context): List<InstalledGame> {
     return candidates.mapNotNull { candidate ->
         try {
             val info = context.packageManager.getPackageInfo(candidate.first, 0)
-            val label = context.packageManager.getApplicationLabel(info.applicationInfo).toString()
+            val label = info.applicationInfo?.let {
+                context.packageManager.getApplicationLabel(it).toString()
+            }.orEmpty()
             InstalledGame(candidate.first, label.ifBlank { candidate.second }, info.versionName ?: "Unknown", candidate.third)
         } catch (_: Exception) {
             null
