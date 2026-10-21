@@ -310,132 +310,134 @@ private fun DockItem(destination: DockDestination, selected: Boolean, onClick: (
     }
 }
 
-private const val MODULE_PREFERENCES = "rabbit_module_preferences"
-private const val ENABLED_MODULES_KEY = "enabled_preview_modules"
+private data class InstalledGame(
+    val packageName: String,
+    val label: String,
+    val versionName: String,
+    val channel: String
+)
 
-private fun loadEnabledModules(context: Context): Set<String> =
-    context.getSharedPreferences(MODULE_PREFERENCES, Context.MODE_PRIVATE)
-        .getStringSet(ENABLED_MODULES_KEY, emptySet())
-        ?.toSet()
-        .orEmpty()
-        .intersect(moduleList.map { it.id }.toSet())
-
-private fun saveEnabledModules(context: Context, enabled: Set<String>) {
-    context.getSharedPreferences(MODULE_PREFERENCES, Context.MODE_PRIVATE)
-        .edit()
-        .putStringSet(ENABLED_MODULES_KEY, enabled.toSet())
-        .apply()
-}
-
-private data class InstalledGame(val packageName: String, val versionName: String)
-
-private fun detectInstalledGame(context: Context): InstalledGame? {
+private fun detectInstalledGames(context: Context): List<InstalledGame> {
     val candidates = listOf(
-        "com.mojang.minecraftpe",
-        "com.mojang.minecraftpe.beta",
-        "com.mojang.minecraftpe.preview"
+        Triple("com.mojang.minecraftpe", "Minecraft Bedrock", "Stable"),
+        Triple("com.mojang.minecraftpe.preview", "Minecraft Preview", "Preview"),
+        Triple("com.mojang.minecraftpe.beta", "Minecraft Beta", "Beta")
     )
-    for (packageName in candidates) {
+    return candidates.mapNotNull { candidate ->
         try {
-            val info = context.packageManager.getPackageInfo(packageName, 0)
-            val version = info.versionName ?: "Unknown"
-            return InstalledGame(packageName, version)
+            val info = context.packageManager.getPackageInfo(candidate.first, 0)
+            val label = context.packageManager.getApplicationLabel(info.applicationInfo).toString()
+            InstalledGame(candidate.first, label.ifBlank { candidate.second }, info.versionName ?: "Unknown", candidate.third)
         } catch (_: Exception) {
-            // Package is not installed or isn't visible to this app.
+            null
         }
     }
-    return null
 }
 
 @Composable
-private fun HomeScreen(enabledCount: Int, wallpaperSelected: Boolean, onWallpaperClick: () -> Unit, onModules: () -> Unit, onInstances: () -> Unit) {
-    val context = LocalContext.current
-    val installedGame = remember { detectInstalledGame(context) }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
+private fun HomeScreen(
+    installedGames: List<InstalledGame>,
+    selectedGamePackage: String?,
+    wallpaperSelected: Boolean,
+    onWallpaperClick: () -> Unit,
+    onInstances: () -> Unit,
+    onCurseForge: () -> Unit,
+    onLaunch: () -> Unit
+) {
+    val selectedGame = installedGames.firstOrNull { it.packageName == selectedGamePackage }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(26.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Minecraft", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                        Text("Bedrock Edition", color = TextMuted, fontSize = 13.sp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("MINECRAFT  ·  BEDROCK", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                        Text("Ready for your\nnext session", color = Color.White, fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("A clean home for your Minecraft setup.", color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
                     }
-                    OutlinedButton(
-                        onClick = onWallpaperClick,
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 7.dp),
-                        shape = RoundedCornerShape(11.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Accent)
-                    ) {
-                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text(if (wallpaperSelected) "Wallpaper" else "Set wallpaper", fontSize = 10.sp, maxLines = 1)
-                    }
-                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.widthIn(max = 150.dp)) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("▣", color = Accent, fontSize = 18.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text("CURRENT INSTANCE", color = TextMuted, fontSize = 8.sp, letterSpacing = 0.5.sp)
-                                Text(installedGame?.versionName ?: "Not imported", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            }
+                    Surface(color = PanelRaised, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                        Column(Modifier.padding(horizontal = 14.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("▦", fontSize = 31.sp, color = Accent)
+                            Text("BEDROCK", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = TextMuted, letterSpacing = 0.8.sp)
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                Button(onClick = {
-                    val launchIntent = installedGame?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
-                    if (launchIntent != null) context.startActivity(launchIntent) else onInstances()
-                }, modifier = Modifier.fillMaxWidth().height(44.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)) {
-                    Text(if (installedGame != null) "▶  Launch" else "Import / Set up game", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                HorizontalDivider(color = Line.copy(alpha = 0.55f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("CURRENT INSTANCE", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                        Text(selectedGame?.label ?: "No install detected", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (selectedGame != null) selectedGame.channel + "  ·  " + selectedGame.versionName
+                            else "Install Minecraft, then refresh Instances.",
+                            color = TextMuted, fontSize = 11.sp
+                        )
+                    }
+                    TextButton(onClick = onInstances) { Text("Change", color = Accent, fontWeight = FontWeight.Bold) }
                 }
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.Top) {
-                    Text("TIP", color = AccentDeep, fontWeight = FontWeight.ExtraBold, fontSize = 10.sp, letterSpacing = 1.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (installedGame != null) "Detected ${installedGame.versionName}. Runtime isolation is not enabled in this build yet." else "Install the official Minecraft Bedrock app, or open Profiles to check the current setup.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                Button(
+                    onClick = onLaunch,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                ) {
+                    Text(if (selectedGame != null) "▶   Launch Minecraft" else "Set up an instance", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Image, contentDescription = null, tint = AccentDeep, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(if (wallpaperSelected) "Custom wallpaper enabled" else "Make it yours with a custom wallpaper", color = TextMuted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onWallpaperClick, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                        Text(if (wallpaperSelected) "Change" else "Customize", color = Accent, fontSize = 11.sp)
+                    }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.weight(1f)) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Modules", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onModules, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Manage", color = Accent, fontSize = 10.sp) }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                color = Panel, shape = RoundedCornerShape(22.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.weight(1f).clickable(onClick = onInstances)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(42.dp).background(PanelRaised, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(21.dp))
                     }
-                    Spacer(Modifier.height(5.dp))
-                    Text("Preview controls", color = TextMuted, fontSize = 10.sp)
-                    Spacer(Modifier.height(9.dp))
-                    listOf("FPS Counter", "Coordinates", "CPS Counter").forEachIndexed { index, label ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
-                            Box(Modifier.size(6.dp).background(if (index == 0 && enabledCount > 0) AccentDeep else Line, CircleShape))
-                            Spacer(Modifier.width(7.dp))
-                            Text(label, color = Color.White, fontSize = 10.sp, maxLines = 1)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("Demo only · no in-game effect", color = TextMuted, fontSize = 9.sp, lineHeight = 13.sp)
+                    Text("Instances", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Choose an installed Bedrock edition.", color = TextMuted, fontSize = 11.sp, lineHeight = 15.sp)
+                    Text(installedGames.size.toString() + " detected", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.weight(1.15f)) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Content Management", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onInstances, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("View all", color = TextMuted, fontSize = 10.sp) }
+            Surface(
+                color = Panel, shape = RoundedCornerShape(22.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.weight(1f).clickable(onClick = onCurseForge)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(42.dp).background(PanelRaised, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Language, contentDescription = null, tint = Accent, modifier = Modifier.size(21.dp))
                     }
-                    Spacer(Modifier.height(5.dp))
-                    ContentPreviewRow("Worlds", "Manage saves", "W")
-                    HorizontalDivider(color = Line)
-                    ContentPreviewRow("Resource packs", "Visual packs", "R")
-                    HorizontalDivider(color = Line)
-                    ContentPreviewRow("Behavior packs", "Add-ons", "B")
+                    Text("CurseForge", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Explore community add-ons and content.", color = TextMuted, fontSize = 11.sp, lineHeight = 15.sp)
+                    Text("Browse projects  →", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-        Surface(color = Panel, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+
+        Surface(
+            color = Color(0x4410141A), shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.65f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Rabbit Client", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("By KHARGOSH & CHATGPT · isolated runtime in development", color = TextMuted, fontSize = 10.sp, lineHeight = 14.sp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("RABBIT CLIENT", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
+                    Text("By KHARGOSH & CHATGPT", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Text("v0.1.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
@@ -444,142 +446,96 @@ private fun HomeScreen(enabledCount: Int, wallpaperSelected: Boolean, onWallpape
 }
 
 @Composable
-private fun ContentPreviewRow(title: String, subtitle: String, glyph: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(color = PanelRaised, shape = RoundedCornerShape(8.dp)) {
-            Text(glyph, color = Accent, modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = TextMuted, fontSize = 9.sp)
-        }
-    }
-}
-
-@Composable
-private fun ModulesScreen(
-    category: String,
-    onCategory: (String) -> Unit,
-    enabled: Set<String>,
-    onEnabled: (String, Boolean) -> Unit
+private fun InstancesScreen(
+    installedGames: List<InstalledGame>,
+    selectedGamePackage: String?,
+    onSelect: (String) -> Unit,
+    onLaunch: (InstalledGame) -> Unit,
+    onRefresh: () -> Unit
 ) {
-    SectionLabel("MODULE LIBRARY")
-    Spacer(Modifier.height(10.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        listOf("All", "HUD", "Visual", "Utility").forEach {
-            FilterChip(
-                selected = category == it,
-                onClick = { onCategory(it) },
-                label = { Text(it) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Accent,
-                    selectedLabelColor = Bg,
-                    labelColor = TextMuted
-                )
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("Instances", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Choose which installed Minecraft Bedrock edition Rabbit Client launches.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
         }
-    }
-    Spacer(Modifier.height(10.dp))
-    Text("Preview switches only. Real module support needs a verified in-game integration.",
-        color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
-    Spacer(Modifier.height(12.dp))
-    moduleList.filter { category == "All" || it.category == category }.forEach { item ->
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp)) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
-                    Text(item.category.take(1), color = Accent, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(item.name, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(3.dp))
-                    Text(item.detail, color = TextMuted, fontSize = 12.sp)
-                    Text("${if (item.id in enabled) "PREVIEW ON" else "PLANNED"} • ${item.category.uppercase()}", color = AccentDeep,
-                        fontSize = 9.sp, letterSpacing = 1.sp)
-                }
-                Switch(checked = item.id in enabled,
-                    onCheckedChange = { onEnabled(item.id, it) })
-            }
-        }
-    }
-}
 
-@Composable
-private fun InstancesScreen() {
-    val context = LocalContext.current
-    val installedGame = remember { detectInstalledGame(context) }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column {
-            Text("Game profiles", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.height(5.dp))
-            Text("Keep each Minecraft setup organized and easy to identify.", color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("INSTALLED GAME VERSIONS", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                Text(installedGames.size.toString() + " installation(s) detected", color = TextMuted, fontSize = 11.sp)
+            }
+            OutlinedButton(onClick = onRefresh, shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 13.dp, vertical = 9.dp)) {
+                Text("↻  Refresh", color = Color.White, fontSize = 11.sp)
+            }
         }
-        Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = Color(0xFF20392F), shape = RoundedCornerShape(15.dp)) { Text("MC", color = Accent, modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Installed Minecraft", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(installedGame?.versionName ?: "Not detected", color = TextMuted, fontSize = 12.sp)
+
+        if (installedGames.isEmpty()) {
+            Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(58.dp).background(PanelRaised, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(28.dp))
                     }
-                    Surface(color = if (installedGame != null) Color(0xFF20392F) else PanelRaised, shape = RoundedCornerShape(9.dp)) { Text(if (installedGame != null) "FOUND" else "MISSING", color = if (installedGame != null) Accent else TextMuted, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold) }
+                    Text("No game instance found", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Install the official Minecraft Bedrock app or an official Preview edition first, then tap Refresh.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
                 }
-                Spacer(Modifier.height(16.dp))
-                Text("Current installation is detected from Android's installed packages. Launching it does not create an isolated copy.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
-                Spacer(Modifier.height(14.dp))
-                Button(onClick = { installedGame?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }?.let { context.startActivity(it) } }, enabled = installedGame != null, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg, disabledContainerColor = PanelRaised, disabledContentColor = TextMuted)) { Text("Launch installed game", fontWeight = FontWeight.Bold) }
+            }
+        } else {
+            installedGames.forEach { game ->
+                val isSelected = game.packageName == selectedGamePackage
+                Surface(
+                    color = if (isSelected) Color(0x6640514C) else Panel,
+                    shape = RoundedCornerShape(22.dp),
+                    border = androidx.compose.foundation.BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) Accent else Line),
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(game.packageName) }
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = PanelRaised, shape = RoundedCornerShape(14.dp)) {
+                                Text(
+                                    when (game.channel) { "Preview" -> "P"; "Beta" -> "β"; else -> "MC" },
+                                    color = Accent, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(game.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(game.channel + "  ·  Version " + game.versionName, color = TextMuted, fontSize = 11.sp)
+                            }
+                            if (isSelected) {
+                                Surface(color = Accent, shape = RoundedCornerShape(20.dp)) {
+                                    Text("SELECTED", color = Bg, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.7.sp)
+                                }
+                            } else {
+                                OutlinedButton(onClick = { onSelect(game.packageName) }, contentPadding = PaddingValues(horizontal = 11.dp, vertical = 7.dp), shape = RoundedCornerShape(11.dp)) {
+                                    Text("Select", color = Color.White, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                        if (isSelected) {
+                            Button(
+                                onClick = { onLaunch(game) },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape = RoundedCornerShape(13.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                            ) { Text("Launch this instance", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                        }
+                    }
+                }
             }
         }
-        SectionLabel("ISOLATED PROFILES")
-        Surface(color = Panel, shape = RoundedCornerShape(24.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp)) {
-                Box(Modifier.size(48.dp).background(PanelRaised, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) { Text("+", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Light) }
-                Spacer(Modifier.height(15.dp))
-                Text("Create a separate game profile", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(7.dp))
-                Text("A real isolated profile needs a managed Minecraft runtime, separate game data, and a verified launch path. This is not implemented in the current build yet.", color = TextMuted, fontSize = 12.sp, lineHeight = 19.sp)
-                Spacer(Modifier.height(14.dp))
-                Surface(color = Color(0xFF2C2519), shape = RoundedCornerShape(10.dp)) { Text("RUNTIME INTEGRATION REQUIRED", color = Color(0xFFFFD98A), modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp) }
+
+        Surface(
+            color = Color(0x4410141A), shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.65f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("ABOUT ANDROID INSTANCES", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+                Text("Rabbit Client can select among separate Minecraft editions already installed on Android, such as Stable and Preview.", color = Color.White, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("Flarial’s desktop launcher can manage separate game versions with its own runtime. That runtime cannot be reused directly on Android, so arbitrary Bedrock version downloads into isolated Android instances are not enabled in this build.", color = TextMuted, fontSize = 11.sp, lineHeight = 17.sp)
             }
         }
-        SectionLabel("PLANNED PROFILE TOOLS")
-        Surface(color = Panel, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                WorkspaceRow("Import official game", "Prepare a user-provided game package", "I")
-                HorizontalDivider(color = Line)
-                WorkspaceRow("Worlds & packs", "Separate content by profile", "W")
-                HorizontalDivider(color = Line)
-                WorkspaceRow("Backup & restore", "Protect profile data before changes", "B")
-            }
-        }
-    }
-}
-@Composable
-private fun WorkspaceRow(title: String, subtitle: String, glyph: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(color = PanelRaised, shape = RoundedCornerShape(10.dp)) {
-            Text(
-                glyph,
-                color = Accent,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            Spacer(Modifier.height(3.dp))
-            Text(subtitle, color = TextMuted, fontSize = 11.sp, lineHeight = 15.sp)
-        }
-        Icon(Icons.Default.Tune, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
     }
 }
 
