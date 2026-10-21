@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +39,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,26 +50,51 @@ private val BgState = mutableStateOf(Color(0xFF080B10))
 private val AccentState = mutableStateOf(Color(0xFFB7F7D5))
 private val AccentDeepState = mutableStateOf(Color(0xFF62D9A0))
 private val Bg: Color get() = BgState.value
-private val Panel = Color(0xA610141A)
-private val PanelRaised = Color(0xB8141A22)
+private val Panel = Color(0x6610141A)
+private val PanelRaised = Color(0x80141A22)
 private val Accent: Color get() = AccentState.value
 private val AccentDeep: Color get() = AccentDeepState.value
 private val TextMuted = Color(0xFF91A0B2)
 private val Line = Color(0xFF263341)
 
 private const val RABBIT_REPOSITORY_URL = "https://github.com/khargosh-area/rabbitclient"
-private val RABBIT_THEME_NAMES = listOf("Obsidian + Mint", "Midnight Blue", "Amethyst", "Ember")
+
+private data class AccentPreset(val name: String, val primary: Color, val deep: Color)
+
+private val RABBIT_ACCENT_PRESETS = listOf(
+    AccentPreset("Mint", Color(0xFFB7F7D5), Color(0xFF62D9A0)),
+    AccentPreset("Blue", Color(0xFF8EB8FF), Color(0xFF4C82E8)),
+    AccentPreset("Violet", Color(0xFFD1B3FF), Color(0xFF9B70E8)),
+    AccentPreset("Rose", Color(0xFFFFAFC8), Color(0xFFE86C96)),
+    AccentPreset("Amber", Color(0xFFFFD08A), Color(0xFFE7A33F)),
+    AccentPreset("Cyan", Color(0xFF8DEBFF), Color(0xFF36B7D8)),
+    AccentPreset("Red", Color(0xFFFF9B91), Color(0xFFDF5B52)),
+    AccentPreset("White", Color(0xFFF0F3F8), Color(0xFFB7C0CE))
+)
 
 private fun applyRabbitTheme(name: String) {
-    val colors = when (name) {
-        "Midnight Blue" -> Triple(Color(0xFF080B13), Color(0xFF8EB8FF), Color(0xFF4C82E8))
-        "Amethyst" -> Triple(Color(0xFF100A16), Color(0xFFD8B5FF), Color(0xFFA17AE8))
-        "Ember" -> Triple(Color(0xFF130A08), Color(0xFFFFC08A), Color(0xFFF08A50))
-        else -> Triple(Color(0xFF080B10), Color(0xFFB7F7D5), Color(0xFF62D9A0))
+    val accent = RABBIT_ACCENT_PRESETS.firstOrNull { it.name == name } ?: RABBIT_ACCENT_PRESETS.first()
+    BgState.value = Color(0xFF080B10)
+    AccentState.value = accent.primary
+    AccentDeepState.value = accent.deep
+}
+
+private fun curseForgeUrl(query: String, category: String): String {
+    val params = mutableListOf<String>()
+    if (query.isNotBlank()) params += "search=" + Uri.encode(query.trim())
+    val className = when (category) {
+        "Addons" -> "addons"
+        "Maps" -> "maps"
+        "Texture Packs" -> "texture-packs"
+        "Scripts" -> "scripts"
+        "Skins" -> "skins"
+        else -> null
     }
-    BgState.value = colors.first
-    AccentState.value = colors.second
-    AccentDeepState.value = colors.third
+    if (className != null) params += "class=" + className
+    params += "page=1"
+    params += "pageSize=20"
+    params += "sortBy=relevancy"
+    return "https://www.curseforge.com/minecraft-bedrock/search?" + params.joinToString("&")
 }
 
 private data class DockDestination(val label: String, val page: String, val icon: ImageVector)
@@ -120,7 +149,7 @@ private fun RabbitApp() {
     var category by remember { mutableStateOf("All") }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
-    var selectedTheme by remember(context) { mutableStateOf(preferences.getString("theme_name", "Obsidian + Mint") ?: "Obsidian + Mint") }
+    var selectedTheme by remember(context) { mutableStateOf((preferences.getString("theme_name", "Mint") ?: "Mint").let { saved -> if (RABBIT_ACCENT_PRESETS.any { it.name == saved }) saved else "Mint" }) }
     LaunchedEffect(selectedTheme) {
         preferences.edit().putString("theme_name", selectedTheme).apply()
         applyRabbitTheme(selectedTheme)
@@ -160,7 +189,7 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             if (fullWallpaper != null) {
                 Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Color(0x33060A10)))
+                Box(Modifier.fillMaxSize().background(Color(0x18060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
@@ -172,7 +201,7 @@ private fun RabbitApp() {
                     Surface(
                         modifier = Modifier.wrapContentWidth().padding(horizontal = 10.dp),
                         shape = RoundedCornerShape(34.dp),
-                        color = Color(0xF2080B10),
+                        color = Color(0xD9080B10),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Line),
                         shadowElevation = 16.dp
                     ) {
@@ -196,10 +225,12 @@ private fun RabbitApp() {
             Column(
                 Modifier.fillMaxSize()
                     .padding(insets)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
+                    .then(
+                        if (page == "CurseForge") Modifier
+                        else Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
+                    )
             ) {
-                if (page != "Home") {
+                if (page != "Home" && page != "CurseForge") {
                     Spacer(Modifier.height(22.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(16.dp), color = Accent) {
@@ -218,7 +249,7 @@ private fun RabbitApp() {
                         }
                     }
                     Spacer(Modifier.height(24.dp))
-                } else {
+                } else if (page == "Home") {
                     Spacer(Modifier.height(8.dp))
                 }
 
@@ -256,7 +287,7 @@ private fun RabbitApp() {
                         onInstances = { page = "Instances" }
                     )
                 }
-                Spacer(Modifier.height(24.dp))
+                if (page != "CurseForge") Spacer(Modifier.height(24.dp))
             }
         }
         }
@@ -581,34 +612,32 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
     val wallpaperBitmap: ImageBitmap? = remember(wallpaperUri) {
         try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
     }
-    SectionLabel("APPEARANCE")
+    SectionLabel("ACCENT COLOUR")
     Spacer(Modifier.height(10.dp))
     Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("Choose your theme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Accent colours apply across the launcher and are saved on this device.", color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
-            RABBIT_THEME_NAMES.forEach { name ->
-                val preview = when (name) {
-                    "Midnight Blue" -> Color(0xFF8EB8FF)
-                    "Amethyst" -> Color(0xFFD8B5FF)
-                    "Ember" -> Color(0xFFFFC08A)
-                    else -> Color(0xFFB7F7D5)
-                }
-                Surface(
-                    color = if (selectedTheme == name) PanelRaised else Color(0x6610141A),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(if (selectedTheme == name) 1.5.dp else 1.dp, if (selectedTheme == name) preview else Line),
-                    modifier = Modifier.fillMaxWidth().clickable { onThemeChange(name) }
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(30.dp).background(preview, CircleShape))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(if (name == selectedTheme) "Currently active" else "Tap to apply", color = TextMuted, fontSize = 10.sp)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Pick your highlight colour", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("The dark Obsidian glass theme stays the same. Only highlights and active controls change.", color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
+            RABBIT_ACCENT_PRESETS.chunked(4).forEach { rowPresets ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowPresets.forEach { preset ->
+                        Column(
+                            modifier = Modifier.weight(1f).clickable { onThemeChange(preset.name) }.padding(vertical = 5.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Box(
+                                Modifier.size(42.dp)
+                                    .background(preset.primary, CircleShape)
+                                    .then(if (selectedTheme == preset.name) Modifier.border(2.dp, Color.White, CircleShape) else Modifier),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (selectedTheme == preset.name) Text("✓", color = Bg, fontSize = 17.sp, fontWeight = FontWeight.Black)
+                            }
+                            Text(preset.name, color = if (selectedTheme == preset.name) preset.primary else TextMuted, fontSize = 10.sp, fontWeight = if (selectedTheme == preset.name) FontWeight.Bold else FontWeight.Normal)
                         }
-                        if (name == selectedTheme) Text("ACTIVE", color = preview, fontWeight = FontWeight.ExtraBold, fontSize = 9.sp)
                     }
+                    repeat(4 - rowPresets.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -618,8 +647,8 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
     Spacer(Modifier.height(10.dp))
     Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
-            Text("Obsidian + Mint", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Current visual direction", color = TextMuted, fontSize = 12.sp)
+            Text("Live colour preview", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Your selected accent is applied across the launcher.", color = TextMuted, fontSize = 12.sp)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(Bg, Panel, Accent, AccentDeep).forEach { color -> Box(Modifier.weight(1f).height(34.dp).background(color, RoundedCornerShape(10.dp))) } }
             Spacer(Modifier.height(22.dp))
@@ -634,7 +663,6 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
             Text("Discover Minecraft Bedrock add-ons.", color = TextMuted, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onCurseForge, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
-            Text("CurseForge opens inside Rabbit Client. No .levipack support.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
             Spacer(Modifier.height(20.dp))
             Text("Compatibility", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
@@ -726,73 +754,89 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
     val categories = listOf("All", "Addons", "Maps", "Texture Packs", "Scripts", "Skins")
     var query by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("All") }
-    var pageUrl by remember { mutableStateOf("https://www.curseforge.com/minecraft-bedrock/search?page=1&pageSize=20&sortBy=relevancy") }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("CurseForge", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Explore Minecraft Bedrock community content", color = TextMuted, fontSize = 11.sp)
-            }
-            OutlinedButton(onClick = onBack, shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) {
-                Text("Back", color = Color.White, fontSize = 11.sp)
-            }
-        }
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    var pageUrl by remember { mutableStateOf(curseForgeUrl("", "All")) }
+    var browser by remember { mutableStateOf<WebView?>(null) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("CurseForge", color = Accent, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Minecraft Bedrock · Community projects", color = TextMuted, fontSize = 11.sp)
+                    }
+                    TextButton(onClick = {
+                        if (browser?.canGoBack() == true) browser?.goBack() else onBack()
+                    }) { Text("‹  Back", color = Accent, fontSize = 12.sp) }
+                    TextButton(onClick = { browser?.reload() }) { Text("↻", color = Color.White, fontSize = 18.sp) }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        placeholder = { Text("Search Bedrock content", fontSize = 12.sp) },
-                        shape = RoundedCornerShape(13.dp)
+                        placeholder = { Text("Search Bedrock content…", fontSize = 12.sp) },
+                        shape = RoundedCornerShape(13.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent,
+                            unfocusedBorderColor = Line,
+                            cursorColor = Accent
+                        )
                     )
                     Button(
-                        onClick = {
-                            val type = if (selectedCategory == "All") "" else "&class=" + when (selectedCategory) {
-                                "Texture Packs" -> "texture-packs"
-                                else -> selectedCategory.lowercase()
-                            }
-                            pageUrl = "https://www.curseforge.com/minecraft-bedrock/search?search=${Uri.encode(query)}$type&page=1&pageSize=20&sortBy=relevancy"
-                        },
+                        onClick = { pageUrl = curseForgeUrl(query, selectedCategory); browser?.loadUrl(pageUrl) },
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 13.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-                    ) {
-                        Text("Search", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
+                    ) { Text("Search", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                ) {
                     categories.forEach { item ->
                         val selected = selectedCategory == item
                         Surface(
-                            color = if (selected) Accent else PanelRaised,
-                            shape = RoundedCornerShape(20.dp),
+                            color = if (selected) Accent else Color(0x5510141A),
+                            shape = RoundedCornerShape(22.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) Accent else Line),
                             modifier = Modifier.clickable {
                                 selectedCategory = item
-                                val type = if (item == "All") "" else "&class=" + when (item) {
-                                    "Texture Packs" -> "texture-packs"
-                                    else -> item.lowercase()
-                                }
-                                pageUrl = "https://www.curseforge.com/minecraft-bedrock/search?page=1&pageSize=20&sortBy=relevancy" + type
+                                pageUrl = curseForgeUrl(query, item)
+                                browser?.loadUrl(pageUrl)
                             }
                         ) {
-                            Text(item, color = if (selected) Bg else TextMuted, fontSize = 9.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp))
+                            Text(item, color = if (selected) Bg else TextMuted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp))
                         }
                     }
                 }
-                Text("Listings load from CurseForge directly. Downloads follow each creator's terms; .levipack files are not supported.", color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp)
             }
         }
+
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(570.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             factory = { viewContext ->
+                CookieManager.getInstance().setAcceptCookie(true)
                 WebView(viewContext).apply {
+                    browser = this
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    settings.builtInZoomControls = true
+                    settings.displayZoomControls = false
+                    webChromeClient = WebChromeClient()
                     webViewClient = WebViewClient()
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     loadUrl(pageUrl)
                 }
             },
