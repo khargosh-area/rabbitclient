@@ -620,9 +620,9 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
             Spacer(Modifier.height(5.dp))
             Text("Target: Bedrock 1.21.90 and newer. Future releases require runtime checks and testing; launcher support and in-game module support are separate.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
             Spacer(Modifier.height(18.dp))
-            Text("Integration status", fontWeight = FontWeight.Bold)
+            Text("In-game integration", fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
-            Text("The current module controls are demo state only. They do not modify Minecraft or guarantee performance improvements.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+            Text("In-game modules are intentionally not shown in the launcher. They will be added only after a working Android game integration is verified.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
 }
@@ -695,7 +695,7 @@ private fun AboutScreen() {
         Surface(color = Panel, shape = RoundedCornerShape(18.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Runtime isolation is not implemented yet.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text("The current app detects and launches an installed Minecraft package. Module toggles are UI previews and do not change the game. Bedrock compatibility and any future runtime integration need device testing.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("The current app detects installed Minecraft editions and launches the selected package. A standalone isolated runtime and direct in-game integration are still in development and need device testing.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
     }
