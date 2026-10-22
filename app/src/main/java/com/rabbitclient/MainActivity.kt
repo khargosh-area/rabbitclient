@@ -40,6 +40,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
 import android.webkit.CookieManager
+import android.webkit.WebSettings
+import android.view.View
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,12 +51,12 @@ private val BgState = mutableStateOf(Color(0xFF080B10))
 private val AccentState = mutableStateOf(Color(0xFFB7F7D5))
 private val AccentDeepState = mutableStateOf(Color(0xFF62D9A0))
 private val Bg: Color get() = BgState.value
-private val Panel = Color(0x6610141A)
-private val PanelRaised = Color(0x80141A22)
+private val Panel = Color(0x4410141A)
+private val PanelRaised = Color(0x66141A22)
 private val Accent: Color get() = AccentState.value
 private val AccentDeep: Color get() = AccentDeepState.value
 private val TextMuted = Color(0xFF91A0B2)
-private val Line = Color(0xFF263341)
+private val Line = Color(0x80506070)
 
 private const val RABBIT_REPOSITORY_URL = "https://github.com/khargosh-area/rabbitclient"
 
@@ -173,7 +175,7 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             if (fullWallpaper != null) {
                 Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Color(0x18060A10)))
+                Box(Modifier.fillMaxSize().background(Color(0x10060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
@@ -185,7 +187,7 @@ private fun RabbitApp() {
                     Surface(
                         modifier = Modifier.wrapContentWidth().padding(horizontal = 10.dp),
                         shape = RoundedCornerShape(34.dp),
-                        color = Color(0xD9080B10),
+                        color = Color(0xB8080B10),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Line),
                         shadowElevation = 16.dp
                     ) {
@@ -705,99 +707,151 @@ private fun AboutScreen() {
 
 @Composable
 private fun CurseForgeScreen(onBack: () -> Unit) {
-    val categories = listOf("All", "Addons", "Maps", "Texture Packs", "Scripts", "Skins")
-    var query by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("All") }
-    var pageUrl by remember { mutableStateOf(curseForgeUrl("", "All")) }
+    val context = LocalContext.current
+    // Keep CurseForge's own search, filters, project cards and cookie controls intact.
+    // The wrapper stays minimal so there are no competing duplicate search/filter rows.
+    var pageUrl by remember { mutableStateOf(curseForgeUrl("", "Addons")) }
     var browser by remember { mutableStateOf<WebView?>(null) }
+    var browserProgress by remember { mutableIntStateOf(0) }
+    var browserLoading by remember { mutableStateOf(true) }
+
     LaunchedEffect(pageUrl) {
-        browser?.loadUrl(pageUrl)
+        val view = browser
+        if (view != null && view.url != pageUrl) {
+            browserLoading = true
+            browserProgress = 0
+            view.loadUrl(pageUrl)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            browser?.let { view ->
+                view.stopLoading()
+                view.webChromeClient = null
+                view.webViewClient = null
+                view.destroy()
+            }
+        }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Surface(
-            color = Panel,
-            shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            color = Color(0x4410141A),
+            shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.65f)),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("CurseForge", color = Accent, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Minecraft Bedrock · Community projects", color = TextMuted, fontSize = 11.sp)
-                    }
-                    TextButton(onClick = {
-                        if (browser?.canGoBack() == true) browser?.goBack() else onBack()
-                    }) { Text("‹  Back", color = Accent, fontSize = 12.sp) }
-                    TextButton(onClick = { browser?.reload() }) { Text("↻", color = Color.White, fontSize = 18.sp) }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("Search Bedrock content…", fontSize = 12.sp) },
-                        shape = RoundedCornerShape(13.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Accent,
-                            unfocusedBorderColor = Line,
-                            cursorColor = Accent
-                        )
-                    )
-                    Button(
-                        onClick = { pageUrl = curseForgeUrl(query, selectedCategory) },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-                    ) { Text("Search", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = Accent.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(39.dp)
                 ) {
-                    categories.forEach { item ->
-                        val selected = selectedCategory == item
-                        Surface(
-                            color = if (selected) Accent else Color(0x5510141A),
-                            shape = RoundedCornerShape(22.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) Accent else Line),
-                            modifier = Modifier.clickable {
-                                selectedCategory = item
-                                pageUrl = curseForgeUrl(query, item)
-                            }
-                        ) {
-                            Text(item, color = if (selected) Bg else TextMuted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp))
-                        }
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Language, contentDescription = null, tint = Accent, modifier = Modifier.size(21.dp))
                     }
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("CurseForge", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (browserLoading) "Loading Bedrock projects…" else "Minecraft Bedrock · official catalogue",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 1
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        if (browser?.canGoBack() == true) browser?.goBack() else onBack()
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text("‹ Back", color = Accent, fontSize = 11.sp)
+                }
+                TextButton(
+                    onClick = {
+                        browserLoading = true
+                        browserProgress = 0
+                        browser?.reload()
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text("↻", color = Color.White, fontSize = 18.sp)
                 }
             }
         }
 
-        AndroidView(
+        Surface(
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            factory = { viewContext ->
-                CookieManager.getInstance().setAcceptCookie(true)
-                WebView(viewContext).apply {
-                    browser = this
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.useWideViewPort = true
-                    settings.loadWithOverviewMode = true
-                    settings.builtInZoomControls = true
-                    settings.displayZoomControls = false
-                    webChromeClient = WebChromeClient()
-                    webViewClient = WebViewClient()
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    loadUrl(pageUrl)
+            color = Color.Transparent,
+            shape = RoundedCornerShape(17.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.6f))
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { viewContext ->
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        WebView(viewContext).apply {
+                            browser = this
+                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                            overScrollMode = View.OVER_SCROLL_NEVER
+                            isVerticalScrollBarEnabled = false
+                            isHorizontalScrollBarEnabled = false
+                            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            settings.loadsImagesAutomatically = true
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = true
+                            settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
+                            settings.javaScriptCanOpenWindowsAutomatically = false
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onProgressChanged(view: WebView, newProgress: Int) {
+                                    browserProgress = newProgress
+                                    if (newProgress >= 100) browserLoading = false
+                                }
+                            }
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    browserLoading = true
+                                    browserProgress = 0
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    browserLoading = false
+                                    browserProgress = 100
+                                }
+
+                                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean = false
+                            }
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                            loadUrl(pageUrl)
+                        }
+                    },
+                    update = { /* Avoid reloads during recomposition; page changes use LaunchedEffect. */ }
+                )
+
+                if (browserLoading && browserProgress in 1..99) {
+                    Box(
+                        Modifier.align(Alignment.TopStart)
+                            .fillMaxWidth(browserProgress / 100f)
+                            .height(2.dp)
+                            .background(Accent, RoundedCornerShape(2.dp))
+                    )
                 }
-            },
-            update = { /* URL changes are handled by LaunchedEffect above. */ }
-        )
+            }
+        }
     }
 }
 
