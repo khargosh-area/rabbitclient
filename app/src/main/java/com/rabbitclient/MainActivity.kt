@@ -711,7 +711,7 @@ private fun fetchCurseForgeProjects(query: String, category: String, sort: Strin
     if (query.isNotBlank()) params += "searchFilter=" + java.net.URLEncoder.encode(query.trim(), "UTF-8")
     val connection = (java.net.URL("https://www.curseforge.com/api/v1/mods/search?" + params.joinToString("&"))
         .openConnection() as java.net.HttpURLConnection)
-    try {
+    return try {
         connection.requestMethod = "GET"
         connection.connectTimeout = 10000
         connection.readTimeout = 15000
@@ -752,7 +752,7 @@ private fun fetchCurseForgeProjects(query: String, category: String, sort: Strin
 private fun fetchCurseForgeDownload(projectId: Int): CurseForgeDownload {
     val connection = (java.net.URL("https://api.cfwidget.com/$projectId")
         .openConnection() as java.net.HttpURLConnection)
-    try {
+    return try {
         connection.requestMethod = "GET"
         connection.connectTimeout = 10000
         connection.readTimeout = 15000
