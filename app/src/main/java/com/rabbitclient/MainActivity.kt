@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
@@ -137,7 +138,11 @@ private fun RabbitSplashCard() {
             modifier = Modifier.size(118.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text("R", color = Accent, fontSize = 66.sp, fontWeight = FontWeight.Black)
+                Image(
+                    painter = painterResource(id = R.drawable.rabbit_app_icon),
+                    contentDescription = "Rabbit Client rabbit logo",
+                    modifier = Modifier.size(92.dp)
+                )
             }
         }
         Text("RABBIT CLIENT", color = Color.White, fontSize = 21.sp,
@@ -220,7 +225,7 @@ private fun RabbitApp() {
     ) {
         Box(Modifier.fillMaxSize().background(Bg)) {
             if (fullWallpaper != null) {
-                Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 // Stronger scrim keeps background art atmospheric instead of competing with controls.
                 Box(Modifier.fillMaxSize().background(Color(0x99060A10)))
             }
