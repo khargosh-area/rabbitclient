@@ -728,8 +728,6 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
         onDispose {
             browser?.let { view ->
                 view.stopLoading()
-                view.webChromeClient = null
-                view.webViewClient = null
                 view.destroy()
             }
         }
