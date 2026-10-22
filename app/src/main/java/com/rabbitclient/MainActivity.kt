@@ -776,50 +776,89 @@ private fun fetchCurseForgeProjects(query: String, category: String, sort: Strin
         "Scripts" -> 4563
         else -> null
     }
-    val params = mutableListOf("gameId=78037", "index=0", "pageSize=24",
-        "sortField=" + if (sort == "Latest") "3" else "2", "sortOrder=desc")
+    val params = mutableListOf(
+        "gameId=78037",
+        "index=0",
+        "pageSize=24",
+        "sortField=" + if (sort == "Latest") "3" else "2",
+        "sortOrder=desc"
+    )
     if (classId != null) params += "classId=$classId"
     if (query.isNotBlank()) params += "searchFilter=" + java.net.URLEncoder.encode(query.trim(), "UTF-8")
-    val connection = (java.net.URL("https://www.curseforge.com/api/v1/mods/search?" + params.joinToString("&"))
-        .openConnection() as java.net.HttpURLConnection)
-    return try {
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 10000
-        connection.readTimeout = 15000
-        connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
-        val status = connection.responseCode
-        if (status !in 200..299) throw IllegalStateException("CurseForge search returned HTTP $status")
-        val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-        val data = root.optJSONObject("data")
-        val mods = data?.optJSONArray("mods") ?: data?.optJSONArray("data")
-            ?: root.optJSONArray("data") ?: root.optJSONArray("mods") ?: org.json.JSONArray()
-        buildList {
-            for (i in 0 until mods.length()) {
-                val item = mods.optJSONObject(i) ?: continue
-                val id = item.optInt("id", 0)
-                val slug = item.optString("slug", "")
-                val authors = item.optJSONArray("authors")
-                val author = authors?.optJSONObject(0)?.optString("name").orEmpty().ifBlank { "CurseForge creator" }
-                val logo = item.optJSONObject("logo")?.optString("url").orEmpty()
-                val links = item.optJSONObject("links")
-                val website = links?.optString("websiteUrl").orEmpty()
-                    .ifBlank { "https://www.curseforge.com/minecraft-bedrock/addons/$slug" }
-                val file = item.optJSONArray("latestFiles")?.optJSONObject(0)
-                val fileName = file?.optString("fileName").orEmpty()
-                val directUrl = file?.optString("downloadUrl")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
-                if (id > 0) add(CurseForgeProject(
-                    id, item.optString("name", "Untitled project"), slug, author,
-                    item.optString("summary", "").ifBlank { "Minecraft Bedrock community content." },
-                    item.optLong("downloadCount", 0L), logo, website, fileName, directUrl
-                ))
-            }
-        }
-    } finally {
-        connection.disconnect()
-    }
-}
 
+    // CurseForge's official catalogue endpoint may return 403 without an approved API key.
+    // Try the official endpoint first, then fall back to the community cfwidget metadata API.
+    val officialUrl = "https://www.curseforge.com/api/v1/mods/search?" + params.joinToString("&")
+    val communityUrl = "https://api.cfwidget.com/minecraft-bedrock"
+    var lastError: Exception? = null
+    for (url in listOf(officialUrl, communityUrl)) {
+        try {
+            val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection)
+            try {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8000
+                connection.readTimeout = 12000
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
+                val status = connection.responseCode
+                if (status !in 200..299) throw IllegalStateException("Catalogue endpoint returned HTTP $status")
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                val root = org.json.JSONObject(body)
+                val items = mutableListOf<org.json.JSONObject>()
+                // Official CurseForge API shape.
+                val data = root.optJSONObject("data")
+                val mods = data?.optJSONArray("mods") ?: data?.optJSONArray("data")
+                    ?: root.optJSONArray("data") ?: root.optJSONArray("mods")
+                if (mods != null) {
+                    for (i in 0 until mods.length()) mods.optJSONObject(i)?.let(items::add)
+                }
+                // Community widget API can expose a flat list or category groups.
+                if (items.isEmpty()) {
+                    val projects = root.optJSONArray("projects") ?: root.optJSONArray("mods")
+                    if (projects != null) {
+                        for (i in 0 until projects.length()) projects.optJSONObject(i)?.let(items::add)
+                    }
+                }
+                val parsed = items.mapNotNull { item ->
+                    val id = item.optInt("id", item.optInt("project_id", 0))
+                    val slug = item.optString("slug", item.optString("url", "")).substringAfterLast("/")
+                    val title = item.optString("name", item.optString("title", "Untitled project"))
+                    val authors = item.optJSONArray("authors")
+                    val author = authors?.optJSONObject(0)?.optString("name").orEmpty()
+                        .ifBlank { item.optString("author", "CurseForge creator") }
+                    val logo = item.optJSONObject("logo")?.optString("url")
+                        ?: item.optString("thumbnail", item.optString("avatar", ""))
+                    val links = item.optJSONObject("links")
+                    val website = links?.optString("websiteUrl").orEmpty()
+                        .ifBlank { item.optString("url").takeIf { it.startsWith("https://") }.orEmpty() }
+                        .ifBlank { "https://www.curseforge.com/minecraft-bedrock/addons/$slug" }
+                    val file = item.optJSONArray("latestFiles")?.optJSONObject(0)
+                    val fileName = file?.optString("fileName").orEmpty()
+                    val directUrl = file?.optString("downloadUrl")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+                    if (id <= 0 || title.isBlank()) null else CurseForgeProject(
+                        id, title, slug, author,
+                        item.optString("summary", item.optString("description", "Minecraft Bedrock community content."))
+                            .ifBlank { "Minecraft Bedrock community content." },
+                        item.optLong("downloadCount", item.optLong("downloads", 0L)),
+                        logo, website, fileName, directUrl
+                    )
+                }
+                val filtered = if (query.isBlank()) parsed else parsed.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                        it.summary.contains(query, ignoreCase = true) ||
+                        it.author.contains(query, ignoreCase = true)
+                }
+                if (filtered.isNotEmpty()) return filtered.take(24)
+                lastError = IllegalStateException("No compatible projects were returned by the catalogue.")
+            } finally {
+                connection.disconnect()
+            }
+        } catch (e: Exception) {
+            lastError = e
+        }
+    }
+    throw lastError ?: IllegalStateException("CurseForge catalogue is unavailable.")
+}
 private fun fetchCurseForgeDownload(projectId: Int): CurseForgeDownload {
     val connection = (java.net.URL("https://api.cfwidget.com/$projectId")
         .openConnection() as java.net.HttpURLConnection)
