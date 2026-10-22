@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,6 +72,26 @@ private fun applyRabbitTheme(name: String) {
     BgState.value = Color(0xFF080B10)
     AccentState.value = accent.primary
     AccentDeepState.value = accent.deep
+}
+
+// Decode a bounded thumbnail away from Compose's UI thread so high-resolution wallpapers
+// do not cause avoidable memory pressure on tablets.
+private fun loadWallpaperThumbnail(context: Context, uriString: String?): ImageBitmap? {
+    if (uriString.isNullOrBlank()) return null
+    return try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(Uri.parse(uriString))?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val sample = maxOf(1, maxOf(bounds.outWidth / 1600, bounds.outHeight / 1600))
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        context.contentResolver.openInputStream(Uri.parse(uriString))?.use {
+            BitmapFactory.decodeStream(it, null, options)?.asImageBitmap()
+        }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 
@@ -177,8 +198,11 @@ private fun RabbitApp() {
             context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", uri.toString()).apply()
         }
     }
-    val fullWallpaper: ImageBitmap? = remember(wallpaperUri) {
-        try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
+    var fullWallpaper by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(wallpaperUri) {
+        fullWallpaper = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            loadWallpaperThumbnail(context, wallpaperUri)
+        }
     }
 
     MaterialTheme(
