@@ -35,13 +35,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebChromeClient
-import android.webkit.CookieManager
-import android.webkit.WebSettings
-import android.view.View
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,23 +73,6 @@ private fun applyRabbitTheme(name: String) {
     AccentDeepState.value = accent.deep
 }
 
-private fun curseForgeUrl(query: String, category: String): String {
-    val params = mutableListOf<String>()
-    if (query.isNotBlank()) params += "search=" + Uri.encode(query.trim())
-    val className = when (category) {
-        "Addons" -> "addons"
-        "Maps" -> "maps"
-        "Texture Packs" -> "texture-packs"
-        "Scripts" -> "scripts"
-        "Skins" -> "skins"
-        else -> null
-    }
-    if (className != null) params += "class=" + className
-    params += "page=1"
-    params += "pageSize=20"
-    params += "sortBy=relevancy"
-    return "https://www.curseforge.com/minecraft-bedrock/search?" + params.joinToString("&")
-}
 
 private data class DockDestination(val label: String, val page: String, val icon: ImageVector)
 
@@ -705,152 +681,338 @@ private fun AboutScreen() {
     }
 }
 
+private data class CurseForgeProject(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val author: String,
+    val summary: String,
+    val downloads: Long,
+    val imageUrl: String,
+    val projectUrl: String,
+    val fileName: String,
+    val downloadUrl: String?
+)
+
+private data class CurseForgeDownload(val url: String?, val fileName: String)
+
+private fun fetchCurseForgeProjects(query: String, category: String, sort: String): List<CurseForgeProject> {
+    val classId = when (category) {
+        "Add-ons" -> 4559
+        "Maps" -> 4560
+        "Texture Packs" -> 4561
+        "Skins" -> 4562
+        "Scripts" -> 4563
+        else -> null
+    }
+    val params = mutableListOf("gameId=78037", "index=0", "pageSize=24",
+        "sortField=" + if (sort == "Latest") "3" else "2", "sortOrder=desc")
+    if (classId != null) params += "classId=$classId"
+    if (query.isNotBlank()) params += "searchFilter=" + java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    val connection = (java.net.URL("https://www.curseforge.com/api/v1/mods/search?" + params.joinToString("&"))
+        .openConnection() as java.net.HttpURLConnection)
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 15000
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
+        val status = connection.responseCode
+        if (status !in 200..299) throw IllegalStateException("CurseForge search returned HTTP $status")
+        val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val data = root.optJSONObject("data")
+        val mods = data?.optJSONArray("mods") ?: data?.optJSONArray("data")
+            ?: root.optJSONArray("data") ?: root.optJSONArray("mods") ?: org.json.JSONArray()
+        buildList {
+            for (i in 0 until mods.length()) {
+                val item = mods.optJSONObject(i) ?: continue
+                val id = item.optInt("id", 0)
+                val slug = item.optString("slug", "")
+                val authors = item.optJSONArray("authors")
+                val author = authors?.optJSONObject(0)?.optString("name").orEmpty().ifBlank { "CurseForge creator" }
+                val logo = item.optJSONObject("logo")?.optString("url").orEmpty()
+                val links = item.optJSONObject("links")
+                val website = links?.optString("websiteUrl").orEmpty()
+                    .ifBlank { "https://www.curseforge.com/minecraft-bedrock/addons/$slug" }
+                val file = item.optJSONArray("latestFiles")?.optJSONObject(0)
+                val fileName = file?.optString("fileName").orEmpty()
+                val directUrl = file?.optString("downloadUrl")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+                if (id > 0) add(CurseForgeProject(
+                    id, item.optString("name", "Untitled project"), slug, author,
+                    item.optString("summary", "").ifBlank { "Minecraft Bedrock community content." },
+                    item.optLong("downloadCount", 0L), logo, website, fileName, directUrl
+                ))
+            }
+        }
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun fetchCurseForgeDownload(projectId: Int): CurseForgeDownload {
+    val connection = (java.net.URL("https://api.cfwidget.com/$projectId")
+        .openConnection() as java.net.HttpURLConnection)
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 15000
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
+        val status = connection.responseCode
+        if (status !in 200..299) throw IllegalStateException("Project details returned HTTP $status")
+        val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val download = root.optJSONObject("download")
+        val url = download?.optString("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        var fileName = download?.optString("name").orEmpty()
+        if (fileName.isBlank()) {
+            val first = root.optJSONArray("files")?.optJSONObject(0)
+            fileName = first?.optString("name").orEmpty().ifBlank { first?.optString("display").orEmpty() }
+        }
+        CurseForgeDownload(url, fileName)
+    } finally {
+        connection.disconnect()
+    }
+}
+
 @Composable
 private fun CurseForgeScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    // Keep CurseForge's own search, filters, project cards and cookie controls intact.
-    // The wrapper stays minimal so there are no competing duplicate search/filter rows.
-    var pageUrl by remember { mutableStateOf(curseForgeUrl("", "Addons")) }
-    var browser by remember { mutableStateOf<WebView?>(null) }
-    var browserProgress by remember { mutableIntStateOf(0) }
-    var browserLoading by remember { mutableStateOf(true) }
+    val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
+    var category by remember { mutableStateOf("Add-ons") }
+    var query by remember { mutableStateOf("") }
+    var submittedQuery by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf("Popular") }
+    var refreshToken by remember { mutableIntStateOf(0) }
+    var projects by remember { mutableStateOf<List<CurseForgeProject>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var selectedProject by remember { mutableStateOf<CurseForgeProject?>(null) }
+    var selectedDownload by remember { mutableStateOf<CurseForgeDownload?>(null) }
+    var loadingDownload by remember { mutableStateOf(false) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(pageUrl) {
-        val view = browser
-        if (view != null && view.url != pageUrl) {
-            browserLoading = true
-            browserProgress = 0
-            view.loadUrl(pageUrl)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            browser?.let { view ->
-                view.stopLoading()
-                view.destroy()
+    LaunchedEffect(category, submittedQuery, sort, refreshToken) {
+        loading = true
+        error = null
+        val result = runCatching {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                fetchCurseForgeProjects(submittedQuery, category, sort)
             }
         }
+        result.onSuccess { projects = it }
+        result.onFailure {
+            projects = emptyList()
+            error = when {
+                it.message?.contains("HTTP 403") == true ->
+                    "CurseForge refused this request. Its official API needs an approved API key; the public search endpoint may be unavailable on this network."
+                it is java.net.UnknownHostException -> "No internet connection. Check your network and retry."
+                else -> it.message ?: "Could not load CurseForge projects."
+            }
+        }
+        loading = false
+    }
+
+    LaunchedEffect(selectedProject?.id) {
+        val project = selectedProject ?: return@LaunchedEffect
+        selectedDownload = null
+        downloadError = null
+        loadingDownload = true
+        val result = runCatching {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                project.downloadUrl?.let { CurseForgeDownload(it, project.fileName) }
+                    ?: fetchCurseForgeDownload(project.id)
+            }
+        }
+        result.onSuccess { selectedDownload = it }
+        result.onFailure { downloadError = it.message ?: "Could not resolve a download for this project." }
+        loadingDownload = false
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Surface(
-            color = Color(0x4410141A),
-            shape = RoundedCornerShape(18.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.65f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    color = Accent.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.size(39.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Language, contentDescription = null, tint = Accent, modifier = Modifier.size(21.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Accent.copy(alpha = 0.15f), shape = RoundedCornerShape(13.dp),
+                modifier = Modifier.size(42.dp).clickable(onClick = onBack)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("←", color = Accent, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("CURSEFORGE", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                Text("Bedrock content", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
+                Text("NATIVE", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+            }
+        }
+
+        Surface(color = Panel, shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Discover community packs", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Search and browse inside Rabbit Client. No embedded website.", color = TextMuted, fontSize = 11.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
+                        singleLine = true, placeholder = { Text("Search add-ons…", color = TextMuted, fontSize = 13.sp) },
+                        shape = RoundedCornerShape(13.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
+                        )
+                    )
+                    Button(onClick = { submittedQuery = query }, shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg),
+                        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 14.dp)) {
+                        Text("Search", fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("CurseForge", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (browserLoading) "Loading Bedrock projects…" else "Minecraft Bedrock · official catalogue",
-                        color = TextMuted,
-                        fontSize = 10.sp,
-                        maxLines = 1
-                    )
-                }
-                TextButton(
-                    onClick = {
-                        if (browser?.canGoBack() == true) browser?.goBack() else onBack()
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text("‹ Back", color = Accent, fontSize = 11.sp)
-                }
-                TextButton(
-                    onClick = {
-                        browserLoading = true
-                        browserProgress = 0
-                        browser?.reload()
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text("↻", color = Color.White, fontSize = 18.sp)
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            categories.forEach { item ->
+                val selected = category == item
+                Surface(color = if (selected) Accent else Panel, shape = RoundedCornerShape(24.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) Accent else Line),
+                    modifier = Modifier.clickable { category = item }) {
+                    Text(item, color = if (selected) Bg else TextMuted, fontSize = 11.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp))
                 }
             }
         }
 
-        Surface(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            color = Color.Transparent,
-            shape = RoundedCornerShape(17.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.6f))
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { viewContext ->
-                        CookieManager.getInstance().setAcceptCookie(true)
-                        WebView(viewContext).apply {
-                            browser = this
-                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                            overScrollMode = View.OVER_SCROLL_NEVER
-                            isVerticalScrollBarEnabled = false
-                            isHorizontalScrollBarEnabled = false
-                            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.cacheMode = WebSettings.LOAD_DEFAULT
-                            settings.loadsImagesAutomatically = true
-                            settings.useWideViewPort = true
-                            settings.loadWithOverviewMode = true
-                            settings.builtInZoomControls = false
-                            settings.displayZoomControls = false
-                            settings.javaScriptCanOpenWindowsAutomatically = false
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView, newProgress: Int) {
-                                    browserProgress = newProgress
-                                    if (newProgress >= 100) browserLoading = false
-                                }
-                            }
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    browserLoading = true
-                                    browserProgress = 0
-                                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (submittedQuery.isBlank()) "Explore $category" else "Results for “$submittedQuery”",
+                    color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(if (sort == "Popular") "Popular projects" else "Recently updated", color = TextMuted, fontSize = 11.sp)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                listOf("Popular", "Latest").forEach { option ->
+                    val active = sort == option
+                    Surface(color = if (active) PanelRaised else Color.Transparent, shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Accent.copy(alpha = 0.6f) else Line),
+                        modifier = Modifier.clickable { sort = option }) {
+                        Text(option, color = if (active) Accent else TextMuted, fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp))
+                    }
+                }
+                Surface(color = Panel, shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.clickable { refreshToken++ }) {
+                    Text("↻", color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                }
+            }
+        }
 
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    browserLoading = false
-                                    browserProgress = 100
-                                }
-
-                                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean = false
+        when {
+            loading -> Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+                    Text("Loading CurseForge projects…", color = TextMuted, fontSize = 12.sp)
+                }
+            }
+            error != null -> Surface(color = Panel, shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Couldn’t load the catalogue", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(error ?: "", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    OutlinedButton(onClick = { refreshToken++ }, shape = RoundedCornerShape(12.dp)) { Text("Retry", color = Accent) }
+                }
+            }
+            projects.isEmpty() -> Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("No projects found", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Try another search or choose a different category.", color = TextMuted, fontSize = 12.sp)
+                }
+            }
+            else -> projects.forEach { project ->
+                Surface(color = Panel, shape = RoundedCornerShape(19.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.8f)),
+                    modifier = Modifier.fillMaxWidth().clickable { selectedProject = project }) {
+                    Row(Modifier.padding(13.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(color = Accent.copy(alpha = 0.12f), shape = RoundedCornerShape(14.dp), modifier = Modifier.size(52.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(project.name.take(1).uppercase(), color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Black)
                             }
-                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                            loadUrl(pageUrl)
                         }
-                    },
-                    update = { /* Avoid reloads during recomposition; page changes use LaunchedEffect. */ }
-                )
-
-                if (browserLoading && browserProgress in 1..99) {
-                    Box(
-                        Modifier.align(Alignment.TopStart)
-                            .fillMaxWidth(browserProgress / 100f)
-                            .height(2.dp)
-                            .background(Accent, RoundedCornerShape(2.dp))
-                    )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(project.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                            Text("by ${project.author}", color = Accent, fontSize = 10.sp, maxLines = 1)
+                            Text(project.summary, color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp, maxLines = 3)
+                            Text("${formatDownloadCount(project.downloads)} downloads · Tap for details", color = TextMuted, fontSize = 9.sp)
+                        }
+                        Text("›", color = Accent, fontSize = 27.sp, modifier = Modifier.align(Alignment.CenterVertically))
+                    }
                 }
             }
         }
+
+        Text("Content is supplied by CurseForge. Downloads are saved to your Downloads folder and may need to be imported into Minecraft manually.",
+            color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(bottom = 8.dp))
     }
+
+    val project = selectedProject
+    if (project != null) {
+        AlertDialog(
+            onDismissRequest = { selectedProject = null },
+            containerColor = Color(0xFF111720),
+            title = { Text(project.name, color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("by ${project.author}", color = Accent, fontSize = 12.sp)
+                    Text(project.summary, color = TextMuted, fontSize = 13.sp, lineHeight = 19.sp)
+                    Text("${formatDownloadCount(project.downloads)} downloads", color = TextMuted, fontSize = 11.sp)
+                    when {
+                        loadingDownload -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            CircularProgressIndicator(color = Accent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text("Getting latest file…", color = TextMuted, fontSize = 11.sp)
+                        }
+                        downloadError != null -> Text(downloadError ?: "", color = Color(0xFFFFB4A9), fontSize = 11.sp)
+                        selectedDownload?.url == null -> Text("No direct download is available for this project.", color = TextMuted, fontSize = 11.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !loadingDownload && selectedDownload?.url != null, onClick = {
+                    val download = selectedDownload ?: return@TextButton
+                    val uri = Uri.parse(download.url)
+                    val safeName = download.fileName.ifBlank { "rabbitclient-${project.id}.zip" }
+                        .substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    try {
+                        val request = android.app.DownloadManager.Request(uri)
+                            .setTitle(safeName)
+                            .setDescription("Rabbit Client · CurseForge")
+                            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                            .setAllowedOverMetered(true)
+                            .setAllowedOverRoaming(false)
+                            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "RabbitClient_$safeName")
+                        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                        manager.enqueue(request)
+                        android.widget.Toast.makeText(context, "Download started. Check Downloads.", android.widget.Toast.LENGTH_LONG).show()
+                        selectedProject = null
+                    } catch (e: Exception) {
+                        downloadError = e.message ?: "Could not start download."
+                    }
+                }) { Text("Download", color = Accent, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { selectedProject = null }) { Text("Close", color = TextMuted) } }
+        )
+    }
+}
+
+private fun formatDownloadCount(value: Long): String = when {
+    value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
+    value >= 1_000 -> String.format(java.util.Locale.US, "%.1fK", value / 1_000.0)
+    else -> value.toString()
 }
 
 @Composable
