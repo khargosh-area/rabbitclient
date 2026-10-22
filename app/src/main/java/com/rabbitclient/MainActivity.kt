@@ -44,8 +44,8 @@ private val BgState = mutableStateOf(Color(0xFF080B10))
 private val AccentState = mutableStateOf(Color(0xFFB7F7D5))
 private val AccentDeepState = mutableStateOf(Color(0xFF62D9A0))
 private val Bg: Color get() = BgState.value
-private val Panel = Color(0x4410141A)
-private val PanelRaised = Color(0x66141A22)
+private val Panel = Color(0xD910141A)
+private val PanelRaised = Color(0xE6141A22)
 private val Accent: Color get() = AccentState.value
 private val AccentDeep: Color get() = AccentDeepState.value
 private val TextMuted = Color(0xFF91A0B2)
@@ -94,13 +94,59 @@ private fun openExternalLink(context: Context, url: String) {
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Match Android system splash to Rabbit Client's Obsidian palette.
+        window.statusBarColor = android.graphics.Color.rgb(8, 11, 16)
+        window.navigationBarColor = android.graphics.Color.rgb(8, 11, 16)
         super.onCreate(savedInstanceState)
         setContent { RabbitApp() }
     }
 }
 
 @Composable
+private fun RabbitSplashCard() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Surface(
+            color = Color(0xFF080B10),
+            shape = CircleShape,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.35f)),
+            modifier = Modifier.size(118.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("R", color = Accent, fontSize = 66.sp, fontWeight = FontWeight.Black)
+            }
+        }
+        Text("RABBIT CLIENT", color = Color.White, fontSize = 21.sp,
+            fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
+        Text("MINECRAFT BEDROCK", color = Accent, fontSize = 10.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp)
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            modifier = Modifier.width(148.dp).height(3.dp),
+            color = Accent,
+            trackColor = Color(0xFF202635)
+        )
+        Text("Preparing your launcher", color = TextMuted, fontSize = 11.sp)
+    }
+}
+
+@Composable
 private fun RabbitApp() {
+    var showSplash by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1500)
+        showSplash = false
+    }
+    if (showSplash) {
+        Box(
+            Modifier.fillMaxSize().background(Color(0xFF080B10)),
+            contentAlignment = Alignment.Center
+        ) { RabbitSplashCard() }
+        return
+    }
     var page by remember { mutableStateOf("Home") }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
@@ -151,7 +197,8 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             if (fullWallpaper != null) {
                 Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Color(0x10060A10)))
+                // Stronger scrim keeps background art atmospheric instead of competing with controls.
+                Box(Modifier.fillMaxSize().background(Color(0x99060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
