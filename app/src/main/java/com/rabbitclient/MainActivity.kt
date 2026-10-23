@@ -224,8 +224,9 @@ private fun RabbitApp() {
         )
     ) {
         Box(Modifier.fillMaxSize().background(Bg)) {
-            if (fullWallpaper != null) {
-                Image(bitmap = fullWallpaper, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            val wallpaperBitmap = fullWallpaper
+            if (wallpaperBitmap != null) {
+                Image(bitmap = wallpaperBitmap, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 // Stronger scrim keeps background art atmospheric instead of competing with controls.
                 Box(Modifier.fillMaxSize().background(Color(0x99060A10)))
             }
