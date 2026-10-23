@@ -139,7 +139,7 @@ private fun RabbitSplashCard() {
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Image(
-                    painter = painterResource(id = R.drawable.rabbit_app_icon),
+                    painter = painterResource(id = R.drawable.rabbit_logo),
                     contentDescription = "Rabbit Client rabbit logo",
                     modifier = Modifier.size(92.dp)
                 )
@@ -272,9 +272,19 @@ private fun RabbitApp() {
                 if (page != "Home" && page != "CurseForge") {
                     Spacer(Modifier.height(22.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(16.dp), color = Accent) {
-                            Text("R", modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
-                                color = Bg, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = PanelRaised,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.42f)),
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.rabbit_logo),
+                                    contentDescription = "Rabbit Client rabbit logo",
+                                    modifier = Modifier.size(43.dp)
+                                )
+                            }
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
@@ -430,7 +440,11 @@ private fun HomeScreen(
                     }
                     Surface(color = PanelRaised, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                         Column(Modifier.padding(horizontal = 14.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("▦", fontSize = 31.sp, color = Accent)
+                            Image(
+                                painter = painterResource(id = R.drawable.rabbit_logo),
+                                contentDescription = "Rabbit Client mascot",
+                                modifier = Modifier.size(42.dp)
+                            )
                             Text("BEDROCK", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = TextMuted, letterSpacing = 0.8.sp)
                         }
                     }
@@ -690,8 +704,16 @@ private fun AboutScreen() {
         Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = Accent, shape = RoundedCornerShape(15.dp)) {
-                        Text("R", color = Bg, fontSize = 24.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 15.dp, vertical = 10.dp))
+                    Surface(
+                        color = PanelRaised,
+                        shape = RoundedCornerShape(15.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.42f))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.rabbit_logo),
+                            contentDescription = "Rabbit Client rabbit logo",
+                            modifier = Modifier.size(58.dp).padding(5.dp)
+                        )
                     }
                     Spacer(Modifier.width(13.dp))
                     Column(Modifier.weight(1f)) {
