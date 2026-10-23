@@ -47,8 +47,8 @@ private val BgState = mutableStateOf(Color(0xFF080B10))
 private val AccentState = mutableStateOf(Color(0xFFB7F7D5))
 private val AccentDeepState = mutableStateOf(Color(0xFF62D9A0))
 private val Bg: Color get() = BgState.value
-private val Panel = Color(0xD910141A)
-private val PanelRaised = Color(0xE6141A22)
+private val Panel = Color(0xB8171D26)
+private val PanelRaised = Color(0xD6222B36)
 private val Accent: Color get() = AccentState.value
 private val AccentDeep: Color get() = AccentDeepState.value
 private val TextMuted = Color(0xFF91A0B2)
@@ -227,21 +227,15 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val wallpaperBitmap = fullWallpaper
             if (wallpaperBitmap != null) {
-                // Fill the screen with a softened crop, then show the complete photo at its true aspect ratio.
-                Image(
-                    bitmap = wallpaperBitmap,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize().blur(26.dp),
-                    contentScale = ContentScale.Crop
-                )
+                // One proportional crop fills the app viewport without stretching or letterboxing.
                 Image(
                     bitmap = wallpaperBitmap,
                     contentDescription = "Rabbit Client background wallpaper",
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Crop
                 )
-                // Keep wallpaper visible without sacrificing contrast in foreground controls.
-                Box(Modifier.fillMaxSize().background(Color(0x77060A10)))
+                // A light scrim keeps controls readable while letting the chosen wallpaper stay visible.
+                Box(Modifier.fillMaxSize().background(Color(0x33060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
@@ -809,38 +803,168 @@ private data class CurseForgeProject(
 private data class CurseForgeDownload(val url: String?, val fileName: String)
 
 private fun fetchCurseForgeProjects(query: String, category: String, sort: String): List<CurseForgeProject> {
-    // CurseForge's official search API requires an approved API key. Do not ship a
-    // secret in this APK; use the official API through a server-side proxy instead.
-    // Public CFWidget documents project/author lookup, not global search, so there is
-    // no supported unauthenticated global catalogue endpoint to call here.
-    throw IllegalStateException(
-        "CurseForge search needs an approved API key through a secure backend. " +
-            "The public metadata API can resolve known projects, but it does not provide global search."
-    )
-}
-private fun fetchCurseForgeDownload(projectId: Int): CurseForgeDownload {
-    val connection = (java.net.URL("https://api.cfwidget.com/$projectId")
-        .openConnection() as java.net.HttpURLConnection)
-    return try {
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 10000
-        connection.readTimeout = 15000
-        connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
-        val status = connection.responseCode
-        if (status !in 200..299) throw IllegalStateException("Project details returned HTTP $status")
-        val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-        val download = root.optJSONObject("download")
-        val url = download?.optString("url")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
-        var fileName = download?.optString("name").orEmpty()
-        if (fileName.isBlank()) {
-            val first = root.optJSONArray("files")?.optJSONObject(0)
-            fileName = first?.optString("name").orEmpty().ifBlank { first?.optString("display").orEmpty() }
-        }
-        CurseForgeDownload(url, fileName)
-    } finally {
-        connection.disconnect()
+    // Keep the catalogue UI native. Read the public, server-rendered CurseForge listing
+    // and turn its project cards into Compose models; never embed the site in a WebView.
+    val route = when (category) {
+        "Maps" -> "maps"
+        "Texture Packs" -> "texture-packs"
+        "Scripts" -> "scripts"
+        "Skins" -> "skins"
+        else -> "addons"
     }
+    val sortValue = if (sort == "Latest") "updated" else "popularity"
+    val url = StringBuilder("https://www.curseforge.com/minecraft-bedrock/search")
+        .append("?class=").append(route)
+        .append("&page=1&pageSize=30")
+        .append("&sortBy=").append(sortValue)
+    if (query.isNotBlank()) {
+        url.append("&search=").append(java.net.URLEncoder.encode(query.trim(), "UTF-8"))
+    }
+
+    val document = org.jsoup.Jsoup.connect(url.toString())
+        .userAgent("Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36 RabbitClient/0.1")
+        .header("Accept", "text/html,application/xhtml+xml")
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .timeout(20000)
+        .get()
+
+    val selector = "a[href*='/minecraft-bedrock/" + route + "/']"
+    val links = document.select(selector)
+    val seen = HashSet<String>()
+    val result = ArrayList<CurseForgeProject>()
+
+    for (link in links) {
+        val name = link.text().replace(Regex("\\s+"), " ").trim()
+        if (name.isBlank() || name.length > 120) continue
+        val projectUrl = link.absUrl("href")
+        if (!projectUrl.startsWith("https://www.curseforge.com/minecraft-bedrock/" + route + "/")) continue
+        val path = android.net.Uri.parse(projectUrl).path.orEmpty()
+        // Ignore file/download buttons and any other nested routes.
+        if (path.trim('/').split('/').size != 3) continue
+        val slug = path.substringAfterLast('/').trim()
+        if (slug.isBlank() || !seen.add(projectUrl)) continue
+        val lowerName = name.lowercase(java.util.Locale.ROOT)
+        if (lowerName in listOf("download", "view project", "details", "files")) continue
+
+        val ancestors = link.parents().take(10)
+        val card = ancestors.firstOrNull { parent ->
+            parent.classNames().any { className -> className.contains("project-card", ignoreCase = true) } ||
+                parent.tagName().equals("article", ignoreCase = true)
+        } ?: ancestors.firstOrNull { parent ->
+            val parentText = parent.text()
+            val routeLinks = parent.select(selector).size
+            routeLinks in 1..3 && parentText.contains(name, ignoreCase = true) &&
+                parentText.length in 40..1800 && parent.select("p").isNotEmpty()
+        }
+
+        val cardText = card?.text().orEmpty()
+        val author = card?.select("a[href*='/authors/'], a[href*='/members/'], a[href*='/author/']")
+            ?.firstOrNull()?.text()?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: Regex("(?i)\\bBy\\s+([A-Za-z0-9_.-]+)").find(cardText)?.groupValues?.getOrNull(1)
+            ?: "CurseForge creator"
+        val summary = card?.select("p")?.firstOrNull()?.text()?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.take(260)
+            ?: "Open the project details to view its description and files."
+        val countMatch = Regex("\\b([0-9]+(?:\\.[0-9]+)?)([KMB])\\b", RegexOption.IGNORE_CASE)
+            .find(cardText.replace(",", ""))
+        val downloads = countMatch?.let { match ->
+            val multiplier = when (match.groupValues[2].uppercase(java.util.Locale.ROOT)) {
+                "K" -> 1_000.0
+                "M" -> 1_000_000.0
+                "B" -> 1_000_000_000.0
+                else -> 1.0
+            }
+            (match.groupValues[1].toDoubleOrNull()?.times(multiplier) ?: 0.0).toLong()
+        } ?: 0L
+        val imageUrl = card?.select("img[src]")?.firstOrNull()?.absUrl("src").orEmpty()
+
+        var projectId = 0
+        val cardElements = card?.allElements
+        if (cardElements != null) {
+            for (element in cardElements) {
+                for (attribute in element.attributes().asList()) {
+                    if (attribute.key.contains("project-id", ignoreCase = true) ||
+                        attribute.key == "data-id" || attribute.key == "data-mod-id") {
+                        val possibleId = attribute.value.toIntOrNull()
+                        if (possibleId != null && possibleId > 0) {
+                            projectId = possibleId
+                            break
+                        }
+                    }
+                }
+                if (projectId > 0) break
+            }
+        }
+
+        result.add(
+            CurseForgeProject(
+                id = projectId,
+                name = name,
+                slug = slug,
+                author = author,
+                summary = summary,
+                downloads = downloads,
+                imageUrl = imageUrl,
+                projectUrl = projectUrl,
+                fileName = "",
+                downloadUrl = null
+            )
+        )
+    }
+
+    if (result.isEmpty() && !document.body().text().contains("no projects", ignoreCase = true) &&
+        !document.body().text().contains("no results", ignoreCase = true)) {
+        throw IllegalStateException("CurseForge returned a page, but its project list could not be read. Tap Retry in a moment.")
+    }
+    return result
+}
+
+private fun fetchCurseForgeDownload(projectUrl: String): CurseForgeDownload {
+    val parsedUrl = android.net.Uri.parse(projectUrl)
+    val path = parsedUrl.encodedPath.orEmpty()
+    if (parsedUrl.host != "www.curseforge.com" || !path.startsWith("/minecraft-bedrock/")) {
+        throw IllegalArgumentException("This is not a valid CurseForge Bedrock project link.")
+    }
+
+    val apiUrl = "https://api.cfwidget.com" + path
+    for (attempt in 0..2) {
+        val connection = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection)
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 15000
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
+            val status = connection.responseCode
+            if (status == 202 && attempt < 2) {
+                // CFWidget can queue a previously unseen project path for its first lookup.
+                connection.disconnect()
+                Thread.sleep(900)
+                continue
+            }
+            if (status !in 200..299) {
+                throw IllegalStateException("Could not resolve the latest file (HTTP " + status + "). You can open the project page instead.")
+            }
+
+            val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val download = root.optJSONObject("download")
+            val directUrl = download?.optString("url")
+                ?.takeIf { it.startsWith("https://") }
+            var fileName = download?.optString("name").orEmpty()
+            if (fileName.isBlank()) {
+                val first = root.optJSONArray("files")?.optJSONObject(0)
+                fileName = first?.optString("name").orEmpty()
+                    .ifBlank { first?.optString("display").orEmpty() }
+            }
+            return CurseForgeDownload(directUrl, fileName)
+        } finally {
+            connection.disconnect()
+        }
+    }
+    throw IllegalStateException("CurseForge is still indexing this project. Retry in a moment.")
 }
 
 @Composable
@@ -872,8 +996,8 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
         result.onFailure {
             projects = emptyList()
             error = when {
-                it.message?.contains("HTTP 403") == true ->
-                    "CurseForge refused this request. Its official API needs an approved API key; the public search endpoint may be unavailable on this network."
+                it is org.jsoup.HttpStatusException && it.statusCode == 403 ->
+                    "CurseForge temporarily refused the catalogue request. Check your connection and try again."
                 it is java.net.UnknownHostException -> "No internet connection. Check your network and retry."
                 else -> it.message ?: "Could not load CurseForge projects."
             }
@@ -881,7 +1005,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
         loading = false
     }
 
-    LaunchedEffect(selectedProject?.id) {
+    LaunchedEffect(selectedProject?.projectUrl) {
         val project = selectedProject ?: return@LaunchedEffect
         selectedDownload = null
         downloadError = null
@@ -889,7 +1013,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
         val result = runCatching {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 project.downloadUrl?.let { CurseForgeDownload(it, project.fileName) }
-                    ?: fetchCurseForgeDownload(project.id)
+                    ?: fetchCurseForgeDownload(project.projectUrl)
             }
         }
         result.onSuccess { selectedDownload = it }
@@ -1054,7 +1178,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                 TextButton(enabled = !loadingDownload && selectedDownload?.url != null, onClick = {
                     val download = selectedDownload ?: return@TextButton
                     val uri = Uri.parse(download.url)
-                    val safeName = download.fileName.ifBlank { "rabbitclient-${project.id}.zip" }
+                    val safeName = download.fileName.ifBlank { "rabbitclient-" + project.slug + ".zip" }
                         .substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
                     try {
                         val request = android.app.DownloadManager.Request(uri)
@@ -1073,7 +1197,12 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                     }
                 }) { Text("Download", color = Accent, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { selectedProject = null }) { Text("Close", color = TextMuted) } }
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { openExternalLink(context, project.projectUrl) }) { Text("Open page", color = Accent) }
+                    TextButton(onClick = { selectedProject = null }) { Text("Close", color = TextMuted) }
+                }
+            }
         )
     }
 }
