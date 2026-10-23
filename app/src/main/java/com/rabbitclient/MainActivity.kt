@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
@@ -226,9 +227,21 @@ private fun RabbitApp() {
         Box(Modifier.fillMaxSize().background(Bg)) {
             val wallpaperBitmap = fullWallpaper
             if (wallpaperBitmap != null) {
-                Image(bitmap = wallpaperBitmap, contentDescription = "Rabbit Client background wallpaper", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                // Stronger scrim keeps background art atmospheric instead of competing with controls.
-                Box(Modifier.fillMaxSize().background(Color(0x99060A10)))
+                // Fill the screen with a softened crop, then show the complete photo at its true aspect ratio.
+                Image(
+                    bitmap = wallpaperBitmap,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().blur(26.dp),
+                    contentScale = ContentScale.Crop
+                )
+                Image(
+                    bitmap = wallpaperBitmap,
+                    contentDescription = "Rabbit Client background wallpaper",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+                // Keep wallpaper visible without sacrificing contrast in foreground controls.
+                Box(Modifier.fillMaxSize().background(Color(0x77060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
