@@ -752,8 +752,16 @@ private fun AboutScreen() {
                 }
                 HorizontalDivider(color = Line)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = PanelRaised, shape = CircleShape) {
-                        Text("GPT", color = Accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(13.dp))
+                    Surface(
+                        color = Color(0xFF101820),
+                        shape = CircleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.45f))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.openai_avatar),
+                            contentDescription = "OpenAI logo for ChatGPT",
+                            modifier = Modifier.size(48.dp).padding(10.dp)
+                        )
                     }
                     Spacer(Modifier.width(12.dp))
                     Column {
@@ -969,6 +977,7 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
     var submittedBackendUrl by remember(context) { mutableStateOf(backendUrl.trim().trimEnd('/')) }
     val scope = rememberCoroutineScope()
     var installingDownload by remember { mutableStateOf(false) }
+    var developerSetupExpanded by remember { mutableStateOf(false) }
     val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
     var category by remember { mutableStateOf("Add-ons") }
     var query by remember { mutableStateOf("") }
@@ -988,7 +997,7 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
         error = null
         if (submittedBackendUrl.isBlank()) {
             projects = emptyList()
-            error = "Connect an HTTPS backend URL below. The official CurseForge API key must stay on the server; see backend/README.md in the GitHub repository."
+            error = "The catalogue service is not connected yet. The developer needs to deploy the secure API service once."
             loading = false
         } else {
             val result = runCatching {
@@ -1057,38 +1066,59 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
             border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Discover community packs", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("Native catalogue powered by the official CurseForge API.", color = TextMuted, fontSize = 11.sp)
-                OutlinedTextField(
-                    value = backendUrl,
-                    onValueChange = { backendUrl = it },
+                Text("Find Bedrock add-ons, maps and texture packs without leaving Rabbit Client.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("HTTPS API service URL", fontSize = 11.sp) },
-                    placeholder = { Text("https://your-service.onrender.com", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent, unfocusedBorderColor = Line,
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Catalogue service", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (submittedBackendUrl.isBlank()) "Not connected"
+                            else "Connected · developer service",
+                            color = if (submittedBackendUrl.isBlank()) TextMuted else Accent,
+                            fontSize = 10.sp
+                        )
+                    }
+                    TextButton(onClick = { developerSetupExpanded = !developerSetupExpanded }) {
+                        Text(if (developerSetupExpanded) "Hide setup" else "Developer setup", color = Accent, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (developerSetupExpanded) {
+                    OutlinedTextField(
+                        value = backendUrl,
+                        onValueChange = { backendUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("HTTPS API service URL", fontSize = 11.sp) },
+                        placeholder = { Text("https://your-service.example", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
+                        )
                     )
-                )
-                Button(
-                    onClick = {
-                        val validated = runCatching { normalizeCurseForgeBackend(backendUrl) }
-                        if (validated.isFailure) {
-                            error = validated.exceptionOrNull()?.message ?: "Enter a valid HTTPS API service URL."
-                        } else {
-                            submittedBackendUrl = validated.getOrThrow()
-                            backendUrl = submittedBackendUrl
-                            preferences.edit().putString("curseforge_backend_url", submittedBackendUrl).apply()
-                            refreshToken++
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-                ) { Text("Connect API service", fontWeight = FontWeight.Bold) }
-                Text("Deploy the repository's backend/ folder and set CURSEFORGE_API_KEY on that server. Never paste a private key here.",
-                    color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp)
+                    Button(
+                        onClick = {
+                            val validated = runCatching { normalizeCurseForgeBackend(backendUrl) }
+                            if (validated.isFailure) {
+                                error = validated.exceptionOrNull()?.message ?: "Enter a valid HTTPS API service URL."
+                            } else {
+                                submittedBackendUrl = validated.getOrThrow()
+                                backendUrl = submittedBackendUrl
+                                preferences.edit().putString("curseforge_backend_url", submittedBackendUrl).apply()
+                                refreshToken++
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                    ) { Text("Connect API service", fontWeight = FontWeight.Bold) }
+                    Text(
+                        "Developer-only: deploy backend/ and configure CURSEFORGE_API_KEY as a server secret. Do not put the private key in the app.",
+                        color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
@@ -1159,7 +1189,15 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
                 Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Couldn’t load the catalogue", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(error ?: "", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
-                    OutlinedButton(onClick = { refreshToken++ }, shape = RoundedCornerShape(12.dp)) { Text("Retry", color = Accent) }
+                    OutlinedButton(
+                        onClick = {
+                            if (submittedBackendUrl.isBlank()) developerSetupExpanded = true
+                            else refreshToken++
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (submittedBackendUrl.isBlank()) "Developer setup" else "Retry", color = Accent)
+                    }
                 }
             }
             projects.isEmpty() -> Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
