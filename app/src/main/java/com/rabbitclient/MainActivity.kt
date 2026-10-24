@@ -234,8 +234,8 @@ private fun RabbitApp() {
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-                // A light scrim keeps controls readable while letting the chosen wallpaper stay visible.
-                Box(Modifier.fillMaxSize().background(Color(0x33060A10)))
+                // Keep the picture visible; panels provide most contrast instead of a page-wide dark veil.
+                Box(Modifier.fillMaxSize().background(Color(0x1A060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
@@ -332,7 +332,7 @@ private fun RabbitApp() {
                         },
                         onRefresh = { installedGames = detectInstalledGames(context) }
                     )
-                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" })
+                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage)
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
                         wallpaperUri = wallpaperUri,
@@ -802,174 +802,171 @@ private data class CurseForgeProject(
 
 private data class CurseForgeDownload(val url: String?, val fileName: String)
 
-private fun fetchCurseForgeProjects(query: String, category: String, sort: String): List<CurseForgeProject> {
-    // Keep the catalogue UI native. Read the public, server-rendered CurseForge listing
-    // and turn its project cards into Compose models; never embed the site in a WebView.
-    val route = when (category) {
-        "Maps" -> "maps"
-        "Texture Packs" -> "texture-packs"
-        "Scripts" -> "scripts"
-        "Skins" -> "skins"
-        else -> "addons"
+private fun normalizeCurseForgeBackend(rawUrl: String): String {
+    val normalized = rawUrl.trim().trimEnd('/')
+    if (normalized.isBlank()) throw IllegalArgumentException("Enter your deployed CurseForge API service URL.")
+    val parsed = Uri.parse(normalized)
+    val secure = parsed.scheme.equals("https", ignoreCase = true)
+    val localDevelopment = parsed.scheme.equals("http", ignoreCase = true) &&
+        parsed.host in setOf("localhost", "127.0.0.1", "10.0.2.2")
+    if (parsed.host.isNullOrBlank() || (!secure && !localDevelopment)) {
+        throw IllegalArgumentException("Use an HTTPS backend URL. HTTP is allowed only for localhost development.")
     }
-    val sortValue = if (sort == "Latest") "updated" else "popularity"
-    val url = StringBuilder("https://www.curseforge.com/minecraft-bedrock/search")
-        .append("?class=").append(route)
-        .append("&page=1&pageSize=30")
-        .append("&sortBy=").append(sortValue)
-    if (query.isNotBlank()) {
-        url.append("&search=").append(java.net.URLEncoder.encode(query.trim(), "UTF-8"))
-    }
+    return normalized
+}
 
-    val document = org.jsoup.Jsoup.connect(url.toString())
-        .userAgent("Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36 RabbitClient/0.1")
-        .header("Accept", "text/html,application/xhtml+xml")
-        .header("Accept-Language", "en-US,en;q=0.9")
-        .timeout(20000)
-        .get()
-
-    val selector = "a[href*='/minecraft-bedrock/" + route + "/']"
-    val links = document.select(selector)
-    val seen = HashSet<String>()
-    val result = ArrayList<CurseForgeProject>()
-
-    for (link in links) {
-        val name = link.text().replace(Regex("\\s+"), " ").trim()
-        if (name.isBlank() || name.length > 120) continue
-        val projectUrl = link.absUrl("href")
-        if (!projectUrl.startsWith("https://www.curseforge.com/minecraft-bedrock/" + route + "/")) continue
-        val path = android.net.Uri.parse(projectUrl).path.orEmpty()
-        // Ignore file/download buttons and any other nested routes.
-        if (path.trim('/').split('/').size != 3) continue
-        val slug = path.substringAfterLast('/').trim()
-        if (slug.isBlank() || !seen.add(projectUrl)) continue
-        val lowerName = name.lowercase(java.util.Locale.ROOT)
-        if (lowerName in listOf("download", "view project", "details", "files")) continue
-
-        val ancestors = link.parents().take(10)
-        val card = ancestors.firstOrNull { parent ->
-            parent.classNames().any { className -> className.contains("project-card", ignoreCase = true) } ||
-                parent.tagName().equals("article", ignoreCase = true)
-        } ?: ancestors.firstOrNull { parent ->
-            val parentText = parent.text()
-            val routeLinks = parent.select(selector).size
-            routeLinks in 1..3 && parentText.contains(name, ignoreCase = true) &&
-                parentText.length in 40..1800 && parent.select("p").isNotEmpty()
-        }
-
-        val cardText = card?.text().orEmpty()
-        val author = card?.select("a[href*='/authors/'], a[href*='/members/'], a[href*='/author/']")
-            ?.firstOrNull()?.text()?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: Regex("(?i)\\bBy\\s+([A-Za-z0-9_.-]+)").find(cardText)?.groupValues?.getOrNull(1)
-            ?: "CurseForge creator"
-        val summary = card?.select("p")?.firstOrNull()?.text()?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?.take(260)
-            ?: "Open the project details to view its description and files."
-        val countMatch = Regex("\\b([0-9]+(?:\\.[0-9]+)?)([KMB])\\b", RegexOption.IGNORE_CASE)
-            .find(cardText.replace(",", ""))
-        val downloads = countMatch?.let { match ->
-            val multiplier = when (match.groupValues[2].uppercase(java.util.Locale.ROOT)) {
-                "K" -> 1_000.0
-                "M" -> 1_000_000.0
-                "B" -> 1_000_000_000.0
-                else -> 1.0
-            }
-            (match.groupValues[1].toDoubleOrNull()?.times(multiplier) ?: 0.0).toLong()
-        } ?: 0L
-        val imageUrl = card?.select("img[src]")?.firstOrNull()?.absUrl("src").orEmpty()
-
-        var projectId = 0
-        val cardElements = card?.allElements
-        if (cardElements != null) {
-            for (element in cardElements) {
-                for (attribute in element.attributes().asList()) {
-                    if (attribute.key.contains("project-id", ignoreCase = true) ||
-                        attribute.key == "data-id" || attribute.key == "data-mod-id") {
-                        val possibleId = attribute.value.toIntOrNull()
-                        if (possibleId != null && possibleId > 0) {
-                            projectId = possibleId
-                            break
-                        }
-                    }
+private fun requestCurseForgeBackendJson(baseUrl: String, route: String): org.json.JSONObject {
+    val connection = (java.net.URL(baseUrl + route).openConnection() as java.net.HttpURLConnection)
+    return try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 20000
+        connection.instanceFollowRedirects = false
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.2")
+        val status = connection.responseCode
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+        val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        if (status !in 200..299) {
+            val serverMessage = runCatching { org.json.JSONObject(body).optString("error") }.getOrNull()
+            val message = serverMessage?.takeIf { it.isNotBlank() }
+                ?: when (status) {
+                    401, 403 -> "The API service rejected its CurseForge key. Check CURSEFORGE_API_KEY on the server."
+                    429 -> "The API service is rate-limited. Please wait and retry."
+                    else -> "CurseForge service returned HTTP " + status + "."
                 }
-                if (projectId > 0) break
-            }
+            throw IllegalStateException(message)
         }
+        org.json.JSONObject(body)
+    } finally {
+        connection.disconnect()
+    }
+}
 
+private fun fetchCurseForgeProjects(
+    backendUrl: String,
+    query: String,
+    category: String,
+    sort: String
+): List<CurseForgeProject> {
+    val baseUrl = normalizeCurseForgeBackend(backendUrl)
+    val endpoint = Uri.parse(baseUrl + "/api/curseforge/search").buildUpon()
+        .appendQueryParameter("query", query.trim())
+        .appendQueryParameter("category", category)
+        .appendQueryParameter("sort", sort)
+        .build()
+        .toString()
+    val root = requestCurseForgeBackendJson(baseUrl, endpoint.removePrefix(baseUrl))
+    val projects = root.optJSONArray("projects")
+        ?: throw IllegalStateException("The API service returned an invalid project list.")
+    val result = ArrayList<CurseForgeProject>(projects.length())
+    for (index in 0 until projects.length()) {
+        val item = projects.optJSONObject(index) ?: continue
+        val id = item.optInt("id", 0)
+        val name = item.optString("name").trim()
+        if (id <= 0 || name.isBlank()) continue
+        val slug = item.optString("slug").ifBlank { id.toString() }
+        val projectUrl = item.optString("projectUrl")
+            .takeIf { it.startsWith("https://www.curseforge.com/") }
+            ?: "https://www.curseforge.com/minecraft-bedrock/addons/" + slug
         result.add(
             CurseForgeProject(
-                id = projectId,
+                id = id,
                 name = name,
                 slug = slug,
-                author = author,
-                summary = summary,
-                downloads = downloads,
-                imageUrl = imageUrl,
+                author = item.optString("author").ifBlank { "CurseForge creator" },
+                summary = item.optString("summary").ifBlank { "Open the project to view its details." }.take(500),
+                downloads = item.optLong("downloads", 0L).coerceAtLeast(0L),
+                imageUrl = item.optString("imageUrl"),
                 projectUrl = projectUrl,
-                fileName = "",
-                downloadUrl = null
+                fileName = item.optString("fileName"),
+                downloadUrl = item.optString("downloadUrl").takeIf { it.startsWith("https://") }
             )
         )
     }
-
-    if (result.isEmpty() && !document.body().text().contains("no projects", ignoreCase = true) &&
-        !document.body().text().contains("no results", ignoreCase = true)) {
-        throw IllegalStateException("CurseForge returned a page, but its project list could not be read. Tap Retry in a moment.")
-    }
     return result
 }
+private fun fetchCurseForgeDownload(backendUrl: String, projectId: Int): CurseForgeDownload {
+    if (projectId <= 0) throw IllegalArgumentException("Invalid CurseForge project ID.")
+    val baseUrl = normalizeCurseForgeBackend(backendUrl)
+    val root = requestCurseForgeBackendJson(baseUrl, "/api/curseforge/download/" + projectId)
+    val url = root.optString("url").takeIf { it.startsWith("https://") }
+        ?: throw IllegalStateException("The creator has not provided a direct download URL for the latest file.")
+    val fileName = root.optString("fileName").ifBlank { "rabbitclient-pack.mcpack" }
+    return CurseForgeDownload(url, fileName)
+}
 
-private fun fetchCurseForgeDownload(projectUrl: String): CurseForgeDownload {
-    val parsedUrl = android.net.Uri.parse(projectUrl)
-    val path = parsedUrl.encodedPath.orEmpty()
-    if (parsedUrl.host != "www.curseforge.com" || !path.startsWith("/minecraft-bedrock/")) {
-        throw IllegalArgumentException("This is not a valid CurseForge Bedrock project link.")
+private fun downloadCurseForgePack(context: Context, downloadUrl: String, requestedName: String): java.io.File {
+    val downloadUri = Uri.parse(downloadUrl)
+    if (!downloadUri.scheme.equals("https", ignoreCase = true) || downloadUri.host.isNullOrBlank()) {
+        throw IllegalArgumentException("Only secure HTTPS pack downloads are allowed.")
     }
-
-    val apiUrl = "https://api.cfwidget.com" + path
-    for (attempt in 0..2) {
-        val connection = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection)
-        try {
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 10000
-            connection.readTimeout = 15000
-            connection.instanceFollowRedirects = true
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.1")
-            val status = connection.responseCode
-            if (status == 202 && attempt < 2) {
-                // CFWidget can queue a previously unseen project path for its first lookup.
-                connection.disconnect()
-                Thread.sleep(900)
-                continue
-            }
-            if (status !in 200..299) {
-                throw IllegalStateException("Could not resolve the latest file (HTTP " + status + "). You can open the project page instead.")
-            }
-
-            val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val download = root.optJSONObject("download")
-            val directUrl = download?.optString("url")
-                ?.takeIf { it.startsWith("https://") }
-            var fileName = download?.optString("name").orEmpty()
-            if (fileName.isBlank()) {
-                val first = root.optJSONArray("files")?.optJSONObject(0)
-                fileName = first?.optString("name").orEmpty()
-                    .ifBlank { first?.optString("display").orEmpty() }
-            }
-            return CurseForgeDownload(directUrl, fileName)
-        } finally {
-            connection.disconnect()
+    val connection = (java.net.URL(downloadUrl).openConnection() as java.net.HttpURLConnection)
+    val maxBytes = 256L * 1024L * 1024L
+    var destination: java.io.File? = null
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 15000
+        connection.readTimeout = 30000
+        connection.instanceFollowRedirects = true
+        connection.setRequestProperty("User-Agent", "RabbitClient-Android/0.2")
+        val status = connection.responseCode
+        if (status !in 200..299) throw IllegalStateException("Download failed with HTTP " + status + ".")
+        if (!connection.url.protocol.equals("https", ignoreCase = true)) {
+            throw IllegalStateException("The download redirected to a non-HTTPS URL.")
         }
+        if (connection.contentLengthLong > maxBytes) {
+            throw IllegalStateException("This pack is larger than Rabbit Client's 256 MB import limit.")
+        }
+        var safeName = requestedName.substringAfterLast('/').substringBefore('?')
+            .replace(Regex("[^A-Za-z0-9._-]"), "_").take(120)
+        if (safeName.isBlank() || safeName == "." || safeName == "..") safeName = "rabbitclient-pack.mcpack"
+        val extension = safeName.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
+        if (extension !in setOf("mcpack", "mcaddon", "mcworld", "zip")) {
+            throw IllegalStateException("Unsupported file type ." + extension + ". Only .mcpack, .mcaddon, .mcworld, and .zip files are accepted.")
+        }
+        val folder = java.io.File(context.cacheDir, "rabbit-imports")
+        if (!folder.exists() && !folder.mkdirs()) throw IllegalStateException("Could not create the pack import cache.")
+        destination = java.io.File(folder, java.lang.System.currentTimeMillis().toString() + "_" + safeName)
+        var copied = 0L
+        connection.inputStream.use { input ->
+            java.io.FileOutputStream(destination).use { output ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    copied += count
+                    if (copied > maxBytes) throw IllegalStateException("This pack is larger than Rabbit Client's 256 MB import limit.")
+                    output.write(buffer, 0, count)
+                }
+                output.flush()
+            }
+        }
+        if (copied == 0L) throw IllegalStateException("CurseForge returned an empty download.")
+        return destination
+    } catch (error: Exception) {
+        destination?.delete()
+        throw error
+    } finally {
+        connection.disconnect()
     }
-    throw IllegalStateException("CurseForge is still indexing this project. Retry in a moment.")
+}
+
+private fun packMimeType(file: java.io.File): String = when (file.extension.lowercase(java.util.Locale.ROOT)) {
+    "mcpack" -> "application/x-mcpack"
+    "mcaddon" -> "application/x-mcaddon"
+    "mcworld" -> "application/x-mcworld"
+    else -> "application/zip"
 }
 
 @Composable
-private fun CurseForgeScreen(onBack: () -> Unit) {
+private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
     val context = LocalContext.current
+    val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
+    var backendUrl by remember(context) { mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "") }
+    var submittedBackendUrl by remember(context) { mutableStateOf(backendUrl.trim().trimEnd('/')) }
+    val scope = rememberCoroutineScope()
+    var installingDownload by remember { mutableStateOf(false) }
     val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
     var category by remember { mutableStateOf("Add-ons") }
     var query by remember { mutableStateOf("") }
@@ -984,41 +981,52 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
     var loadingDownload by remember { mutableStateOf(false) }
     var downloadError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(category, submittedQuery, sort, refreshToken) {
+    LaunchedEffect(submittedBackendUrl, category, submittedQuery, sort, refreshToken) {
         loading = true
         error = null
-        val result = runCatching {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                fetchCurseForgeProjects(submittedQuery, category, sort)
-            }
-        }
-        result.onSuccess { projects = it }
-        result.onFailure {
+        if (submittedBackendUrl.isBlank()) {
             projects = emptyList()
-            error = when {
-                it is org.jsoup.HttpStatusException && it.statusCode == 403 ->
-                    "CurseForge temporarily refused the catalogue request. Check your connection and try again."
-                it is java.net.UnknownHostException -> "No internet connection. Check your network and retry."
-                else -> it.message ?: "Could not load CurseForge projects."
+            error = "Connect an HTTPS backend URL below. The official CurseForge API key must stay on the server; see backend/README.md in the GitHub repository."
+            loading = false
+        } else {
+            val result = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    fetchCurseForgeProjects(submittedBackendUrl, submittedQuery, category, sort)
+                }
             }
+            result.onSuccess { projects = it }
+            result.onFailure { failure ->
+                projects = emptyList()
+                error = when {
+                    failure is java.net.UnknownHostException -> "Cannot reach the API service. Check the URL and your internet connection."
+                    failure.message?.contains("CURSEFORGE_API_KEY", ignoreCase = true) == true ->
+                        "The server has no valid CurseForge API key. Set CURSEFORGE_API_KEY in the backend host's secrets."
+                    else -> failure.message ?: "Could not load the CurseForge catalogue."
+                }
+            }
+            loading = false
         }
-        loading = false
     }
 
-    LaunchedEffect(selectedProject?.projectUrl) {
+    LaunchedEffect(selectedProject?.id, submittedBackendUrl) {
         val project = selectedProject ?: return@LaunchedEffect
         selectedDownload = null
         downloadError = null
         loadingDownload = true
-        val result = runCatching {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                project.downloadUrl?.let { CurseForgeDownload(it, project.fileName) }
-                    ?: fetchCurseForgeDownload(project.projectUrl)
+        if (submittedBackendUrl.isBlank()) {
+            downloadError = "Connect the official API service first."
+            loadingDownload = false
+        } else {
+            val result = runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    project.downloadUrl?.let { CurseForgeDownload(it, project.fileName) }
+                        ?: fetchCurseForgeDownload(submittedBackendUrl, project.id)
+                }
             }
+            result.onSuccess { selectedDownload = it }
+            result.onFailure { downloadError = it.message ?: "Could not resolve a direct download for this project." }
+            loadingDownload = false
         }
-        result.onSuccess { selectedDownload = it }
-        result.onFailure { downloadError = it.message ?: "Could not resolve a download for this project." }
-        loadingDownload = false
     }
 
     Column(
@@ -1047,7 +1055,38 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
             border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Discover community packs", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("Search and browse inside Rabbit Client. No embedded website.", color = TextMuted, fontSize = 11.sp)
+                Text("Native catalogue powered by the official CurseForge API.", color = TextMuted, fontSize = 11.sp)
+                OutlinedTextField(
+                    value = backendUrl,
+                    onValueChange = { backendUrl = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("HTTPS API service URL", fontSize = 11.sp) },
+                    placeholder = { Text("https://your-service.onrender.com", fontSize = 11.sp) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Line,
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
+                    )
+                )
+                Button(
+                    onClick = {
+                        val validated = runCatching { normalizeCurseForgeBackend(backendUrl) }
+                        if (validated.isFailure) {
+                            error = validated.exceptionOrNull()?.message ?: "Enter a valid HTTPS API service URL."
+                        } else {
+                            submittedBackendUrl = validated.getOrThrow()
+                            backendUrl = submittedBackendUrl
+                            preferences.edit().putString("curseforge_backend_url", submittedBackendUrl).apply()
+                            refreshToken++
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                ) { Text("Connect API service", fontWeight = FontWeight.Bold) }
+                Text("Deploy the repository's backend/ folder and set CURSEFORGE_API_KEY on that server. Never paste a private key here.",
+                    color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = query, onValueChange = { query = it }, modifier = Modifier.weight(1f),
@@ -1167,7 +1206,7 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                     when {
                         loadingDownload -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                             CircularProgressIndicator(color = Accent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Text("Getting latest file…", color = TextMuted, fontSize = 11.sp)
+                            Text("Resolving latest official download…", color = TextMuted, fontSize = 11.sp)
                         }
                         downloadError != null -> Text(downloadError ?: "", color = Color(0xFFFFB4A9), fontSize = 11.sp)
                         selectedDownload?.url == null -> Text("No direct download is available for this project.", color = TextMuted, fontSize = 11.sp)
@@ -1175,27 +1214,44 @@ private fun CurseForgeScreen(onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(enabled = !loadingDownload && selectedDownload?.url != null, onClick = {
+                TextButton(enabled = !loadingDownload && !installingDownload && selectedDownload?.url != null, onClick = {
                     val download = selectedDownload ?: return@TextButton
-                    val uri = Uri.parse(download.url)
-                    val safeName = download.fileName.ifBlank { "rabbitclient-" + project.slug + ".zip" }
-                        .substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_")
-                    try {
-                        val request = android.app.DownloadManager.Request(uri)
-                            .setTitle(safeName)
-                            .setDescription("Rabbit Client · CurseForge")
-                            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                            .setAllowedOverMetered(true)
-                            .setAllowedOverRoaming(false)
-                            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "RabbitClient_$safeName")
-                        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                        manager.enqueue(request)
-                        android.widget.Toast.makeText(context, "Download started. Check Downloads.", android.widget.Toast.LENGTH_LONG).show()
-                        selectedProject = null
-                    } catch (e: Exception) {
-                        downloadError = e.message ?: "Could not start download."
+                    val directUrl = download.url ?: return@TextButton
+                    scope.launch {
+                        installingDownload = true
+                        downloadError = null
+                        try {
+                            val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                downloadCurseForgePack(context, directUrl, download.fileName)
+                            }
+                            val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                                context, context.packageName + ".files", file
+                            )
+                            val mime = packMimeType(file)
+                            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(contentUri, mime)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            try {
+                                if (minecraftPackage != null) {
+                                    context.startActivity(Intent(viewIntent).setPackage(minecraftPackage))
+                                } else {
+                                    context.startActivity(Intent.createChooser(viewIntent, "Import into Minecraft"))
+                                }
+                            } catch (_: Exception) {
+                                context.startActivity(Intent.createChooser(viewIntent, "Open downloaded pack"))
+                            }
+                            android.widget.Toast.makeText(context, "Downloaded. Opening the pack in Minecraft…", android.widget.Toast.LENGTH_LONG).show()
+                            selectedProject = null
+                        } catch (failure: Exception) {
+                            downloadError = failure.message ?: "Could not download or open this pack."
+                        } finally {
+                            installingDownload = false
+                        }
                     }
-                }) { Text("Download", color = Accent, fontWeight = FontWeight.Bold) }
+                }) {
+                    Text(if (installingDownload) "Downloading…" else "Install in Minecraft", color = Accent, fontWeight = FontWeight.Bold)
+                }
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
