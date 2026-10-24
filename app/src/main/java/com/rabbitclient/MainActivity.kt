@@ -333,7 +333,7 @@ private fun RabbitApp() {
                         },
                         onRefresh = { installedGames = detectInstalledGames(context) }
                     )
-                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage)
+                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { page = "Settings" })
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
                         wallpaperUri = wallpaperUri,
@@ -640,6 +640,11 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
             context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", uri.toString()).apply()
         }
     }
+    val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
+    var curseForgeBackendUrl by remember(context) {
+        mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "")
+    }
+    var curseForgeBackendStatus by remember { mutableStateOf<String?>(null) }
     val wallpaperBitmap: ImageBitmap? = remember(wallpaperUri) {
         try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
     }
@@ -691,7 +696,44 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
             if (wallpaperUri != null) { Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = { onWallpaperChange(null); context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().remove("wallpaper_uri").apply() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("Reset wallpaper", color = Color.White) } }
             Spacer(Modifier.height(20.dp))
             Text("CurseForge", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("Discover Minecraft Bedrock add-ons.", color = TextMuted, fontSize = 12.sp)
+            Text("Browse community content and import supported packs.", color = TextMuted, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = curseForgeBackendUrl,
+                onValueChange = { curseForgeBackendUrl = it; curseForgeBackendStatus = null },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Catalogue service URL (HTTPS)", fontSize = 11.sp) },
+                placeholder = { Text("https://your-service.example", fontSize = 11.sp) },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Accent, unfocusedBorderColor = Line,
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
+                )
+            )
+            Button(
+                onClick = {
+                    val validated = runCatching { normalizeCurseForgeBackend(curseForgeBackendUrl) }
+                    if (validated.isFailure) {
+                        curseForgeBackendStatus = validated.exceptionOrNull()?.message ?: "Enter a valid HTTPS service URL."
+                    } else {
+                        curseForgeBackendUrl = validated.getOrThrow()
+                        preferences.edit().putString("curseforge_backend_url", curseForgeBackendUrl).apply()
+                        curseForgeBackendStatus = "Saved. Open CurseForge to load the catalogue."
+                        android.widget.Toast.makeText(context, "CurseForge service URL saved.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+            ) { Text("Save service URL", fontWeight = FontWeight.Bold) }
+            Text(
+                "This URL is your deployed Rabbit Client API service, not a CurseForge key. Keep CURSEFORGE_API_KEY on the server only.",
+                color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp
+            )
+            if (curseForgeBackendStatus != null) {
+                Text(curseForgeBackendStatus ?: "", color = if (curseForgeBackendStatus?.startsWith("Saved") == true) Accent else Color(0xFFFFB4A9), fontSize = 11.sp)
+            }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onCurseForge, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Default.Language, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Browse CurseForge", color = Color.White) }
             Spacer(Modifier.height(20.dp))
@@ -741,13 +783,26 @@ private fun AboutScreen() {
         Surface(color = Panel, shape = RoundedCornerShape(20.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = Accent, shape = CircleShape) {
-                        Text("K", color = Bg, fontWeight = FontWeight.Black, modifier = Modifier.padding(13.dp))
+                    Surface(
+                        color = PanelRaised,
+                        shape = CircleShape,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.45f))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.khargosh_author),
+                            contentDescription = "Khargosh author avatar",
+                            modifier = Modifier.size(52.dp),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("KHARGOSH", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Project owner · product direction", color = TextMuted, fontSize = 11.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text("KHARGOSHH", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Project owner · @KhargoshFr", color = TextMuted, fontSize = 11.sp)
+                        TextButton(
+                            onClick = { openExternalLink(context, "https://www.youtube.com/@KhargoshFr") },
+                            contentPadding = PaddingValues(0.dp)
+                        ) { Text("YouTube channel  ↗", color = Accent, fontSize = 10.sp) }
                     }
                 }
                 HorizontalDivider(color = Line)
@@ -970,14 +1025,13 @@ private fun packMimeType(file: java.io.File): String = when (file.extension.lowe
 }
 
 @Composable
-private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
+private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSettings: () -> Unit) {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var backendUrl by remember(context) { mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "") }
     var submittedBackendUrl by remember(context) { mutableStateOf(backendUrl.trim().trimEnd('/')) }
     val scope = rememberCoroutineScope()
     var installingDownload by remember { mutableStateOf(false) }
-    var developerSetupExpanded by remember { mutableStateOf(false) }
     val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
     var category by remember { mutableStateOf("Add-ons") }
     var query by remember { mutableStateOf("") }
@@ -1074,50 +1128,15 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("Catalogue service", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (submittedBackendUrl.isBlank()) "Not connected"
-                            else "Connected · developer service",
+                            if (submittedBackendUrl.isBlank()) "Not configured"
+                            else "Service URL saved",
                             color = if (submittedBackendUrl.isBlank()) TextMuted else Accent,
                             fontSize = 10.sp
                         )
                     }
-                    TextButton(onClick = { developerSetupExpanded = !developerSetupExpanded }) {
-                        Text(if (developerSetupExpanded) "Hide setup" else "Developer setup", color = Accent, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = onSettings) {
+                        Text("Configure in Settings", color = Accent, fontWeight = FontWeight.Bold)
                     }
-                }
-                if (developerSetupExpanded) {
-                    OutlinedTextField(
-                        value = backendUrl,
-                        onValueChange = { backendUrl = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("HTTPS API service URL", fontSize = 11.sp) },
-                        placeholder = { Text("https://your-service.example", fontSize = 11.sp) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Accent, unfocusedBorderColor = Line,
-                            focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = Accent
-                        )
-                    )
-                    Button(
-                        onClick = {
-                            val validated = runCatching { normalizeCurseForgeBackend(backendUrl) }
-                            if (validated.isFailure) {
-                                error = validated.exceptionOrNull()?.message ?: "Enter a valid HTTPS API service URL."
-                            } else {
-                                submittedBackendUrl = validated.getOrThrow()
-                                backendUrl = submittedBackendUrl
-                                preferences.edit().putString("curseforge_backend_url", submittedBackendUrl).apply()
-                                refreshToken++
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-                    ) { Text("Connect API service", fontWeight = FontWeight.Bold) }
-                    Text(
-                        "Developer-only: deploy backend/ and configure CURSEFORGE_API_KEY as a server secret. Do not put the private key in the app.",
-                        color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp
-                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -1189,14 +1208,15 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
                 Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Couldn’t load the catalogue", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(error ?: "", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
-                    OutlinedButton(
-                        onClick = {
-                            if (submittedBackendUrl.isBlank()) developerSetupExpanded = true
-                            else refreshToken++
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (submittedBackendUrl.isBlank()) "Developer setup" else "Retry", color = Accent)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (submittedBackendUrl.isBlank()) {
+                            OutlinedButton(onClick = onSettings, shape = RoundedCornerShape(12.dp)) {
+                                Text("Open Settings", color = Accent)
+                            }
+                        }
+                        OutlinedButton(onClick = { refreshToken++ }, shape = RoundedCornerShape(12.dp)) {
+                            Text("Retry", color = Accent)
+                        }
                     }
                 }
             }
