@@ -109,12 +109,16 @@ async function resolveBedrockClass(category) {
     item.isClass === true || item.rootGameCategoryId == null
   );
 
-  const bedrockClass = classes.find((item) =>
+  const bedrockClasses = classes.filter((item) =>
     /bedrock/i.test(String(item.name || "") + " " + String(item.slug || ""))
   );
+  const requestedBedrockClass = bedrockClasses.find((item) => categoryMatches(item, category));
+  const bedrockClass = bedrockClasses[0];
 
   let result = null;
-  if (bedrockClass) {
+  if (requestedBedrockClass) {
+    result = { gameId, classId: Number(requestedBedrockClass.id) };
+  } else if (bedrockClass) {
     const children = categories.filter((item) =>
       Number(item.parentCategoryId) === Number(bedrockClass.id) ||
       Number(item.rootGameCategoryId) === Number(bedrockClass.id)
@@ -126,8 +130,6 @@ async function resolveBedrockClass(category) {
         classId: Number(bedrockClass.id),
         categoryId: Number(selectedChild.id)
       };
-    } else if (categoryMatches(bedrockClass, category)) {
-      result = { gameId, classId: Number(bedrockClass.id) };
     }
   } else if (bedrockGame) {
     const selectedClass = classes.find((item) => categoryMatches(item, category));
