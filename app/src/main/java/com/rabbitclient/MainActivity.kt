@@ -310,7 +310,7 @@ private fun RabbitApp() {
                             Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                         }
                         Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
-                            Text("v0.1.0", color = TextMuted,
+                            Text("v0.2.0", color = TextMuted,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
                         }
                     }
@@ -541,7 +541,7 @@ private fun HomeScreen(
                     Text("RABBIT CLIENT", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
                     Text("By KHARGOSH & CHATGPT", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text("v0.1.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("v0.2.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -860,7 +860,7 @@ private fun AboutScreen() {
                 Text("A focused launcher UI for managing your Minecraft entry point, exploring community content, and organizing planned tools.", color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(12.dp))
                 Surface(color = PanelRaised, shape = RoundedCornerShape(10.dp)) {
-                    Text("VERSION 0.1.0  ·  ANDROID", color = Accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+                    Text("VERSION 0.2.0  ·  ANDROID", color = Accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
                 }
             }
         }
@@ -1333,7 +1333,7 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
             }
         }
 
-        Text("Content is supplied by CurseForge. Downloads are saved to your Downloads folder and may need to be imported into Minecraft manually.",
+        Text("Content is supplied by CurseForge. Downloads are staged in Rabbit Client’s temporary import cache. Supported packs are handed to Minecraft; ZIP archives may need manual import.",
             color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(bottom = 8.dp))
     }
 
