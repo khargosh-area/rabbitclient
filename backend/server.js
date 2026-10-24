@@ -105,7 +105,9 @@ async function resolveBedrockClass(category) {
   const gameId = bedrockGame ? Number(bedrockGame.id) : 432;
   const categoriesResponse = await curseForgeGet("/categories?gameId=" + gameId);
   const categories = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : [];
-  const classes = categories.filter((item) => item.isClass === true);
+  const classes = categories.filter((item) =>
+    item.isClass === true || item.rootGameCategoryId == null
+  );
 
   const bedrockClass = classes.find((item) =>
     /bedrock/i.test(String(item.name || "") + " " + String(item.slug || ""))
@@ -118,11 +120,15 @@ async function resolveBedrockClass(category) {
       Number(item.rootGameCategoryId) === Number(bedrockClass.id)
     );
     const selectedChild = children.find((item) => categoryMatches(item, category));
-    result = {
-      gameId,
-      classId: Number(bedrockClass.id),
-      categoryId: selectedChild ? Number(selectedChild.id) : undefined
-    };
+    if (selectedChild) {
+      result = {
+        gameId,
+        classId: Number(bedrockClass.id),
+        categoryId: Number(selectedChild.id)
+      };
+    } else if (categoryMatches(bedrockClass, category)) {
+      result = { gameId, classId: Number(bedrockClass.id) };
+    }
   } else if (bedrockGame) {
     const selectedClass = classes.find((item) => categoryMatches(item, category));
     if (selectedClass) result = { gameId, classId: Number(selectedClass.id) };
