@@ -47,13 +47,15 @@ import kotlinx.coroutines.launch
 private val BgState = mutableStateOf(Color(0xFF080B10))
 private val AccentState = mutableStateOf(Color(0xFFB7F7D5))
 private val AccentDeepState = mutableStateOf(Color(0xFF62D9A0))
+private val GlassOpacityState = mutableFloatStateOf(0.64f)
 private val Bg: Color get() = BgState.value
-private val Panel = Color(0xB8171D26)
-private val PanelRaised = Color(0xD6222B36)
+// Reusable translucent glass surfaces. Settings can tune the alpha globally.
+private val Panel: Color get() = Color(0xFF171D26).copy(alpha = GlassOpacityState.floatValue)
+private val PanelRaised: Color get() = Color(0xFF222B36).copy(alpha = (GlassOpacityState.floatValue + 0.16f).coerceAtMost(0.92f))
 private val Accent: Color get() = AccentState.value
 private val AccentDeep: Color get() = AccentDeepState.value
-private val TextMuted = Color(0xFF91A0B2)
-private val Line = Color(0x80506070)
+private val TextMuted = Color(0xFF9BAABC)
+private val Line = Color(0x986A7B90)
 
 private const val RABBIT_REPOSITORY_URL = "https://github.com/khargosh-area/rabbitclient"
 
@@ -178,6 +180,13 @@ private fun RabbitApp() {
     var page by remember { mutableStateOf("Home") }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
+    var glassOpacity by remember(context) {
+        mutableFloatStateOf(preferences.getFloat("glass_opacity", 0.64f).coerceIn(0.45f, 0.82f))
+    }
+    LaunchedEffect(glassOpacity) {
+        GlassOpacityState.floatValue = glassOpacity
+        preferences.edit().putFloat("glass_opacity", glassOpacity).apply()
+    }
     var installedGames by remember(context) { mutableStateOf(detectInstalledGames(context)) }
     var selectedGamePackage by remember(context) {
         val saved = preferences.getString("selected_game_package", null)
@@ -236,7 +245,7 @@ private fun RabbitApp() {
                     contentScale = ContentScale.Crop
                 )
                 // Keep the picture visible; panels provide most contrast instead of a page-wide dark veil.
-                Box(Modifier.fillMaxSize().background(Color(0x1A060A10)))
+                Box(Modifier.fillMaxSize().background(Color(0x24060A10)))
             }
         Scaffold(
             containerColor = Color.Transparent,
@@ -340,7 +349,9 @@ private fun RabbitApp() {
                         onWallpaperChange = { wallpaperUri = it },
                         onCurseForge = { page = "CurseForge" },
                         selectedTheme = selectedTheme,
-                        onThemeChange = { selectedTheme = it }
+                        onThemeChange = { selectedTheme = it },
+                        glassOpacity = glassOpacity,
+                        onGlassOpacityChange = { glassOpacity = it.coerceIn(0.45f, 0.82f) }
                     )
                     else -> HomeScreen(
                         installedGames = installedGames,
@@ -631,7 +642,15 @@ private fun InstancesScreen(
 }
 
 @Composable
-private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -> Unit, onCurseForge: () -> Unit, selectedTheme: String, onThemeChange: (String) -> Unit) {
+private fun SettingsScreen(
+    wallpaperUri: String?,
+    onWallpaperChange: (String?) -> Unit,
+    onCurseForge: () -> Unit,
+    selectedTheme: String,
+    onThemeChange: (String) -> Unit,
+    glassOpacity: Float,
+    onGlassOpacityChange: (Float) -> Unit
+) {
     val context = LocalContext.current
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -648,6 +667,72 @@ private fun SettingsScreen(wallpaperUri: String?, onWallpaperChange: (String?) -
     val wallpaperBitmap: ImageBitmap? = remember(wallpaperUri) {
         try { wallpaperUri?.let { raw -> context.contentResolver.openInputStream(Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } } } catch (_: Exception) { null }
     }
+    SectionLabel("GLASSMORPHISM")
+    Spacer(Modifier.height(10.dp))
+    Surface(
+        color = Panel,
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+        shadowElevation = 8.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Glass transparency", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Adjust how much of your wallpaper shows through.", color = TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+                Surface(
+                    color = PanelRaised,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.45f))
+                ) {
+                    Text("${((1f - glassOpacity) * 100).toInt()}% clear", color = Accent,
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+                }
+            }
+            Slider(
+                value = glassOpacity,
+                onValueChange = onGlassOpacityChange,
+                valueRange = 0.45f..0.82f,
+                steps = 10,
+                colors = SliderDefaults.colors(
+                    thumbColor = Accent,
+                    activeTrackColor = Accent,
+                    inactiveTrackColor = Line
+                )
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("MORE TRANSPARENT", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                    Surface(
+                        color = Color(0xFF171D26).copy(alpha = 0.48f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Glass panel", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(12.dp))
+                    }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("MORE SOLID", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                    Surface(
+                        color = Color(0xFF171D26).copy(alpha = 0.78f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = 0.34f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Glass panel", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(12.dp))
+                    }
+                }
+            }
+            Text("Changes apply across the launcher and save automatically.", color = TextMuted, fontSize = 11.sp)
+        }
+    }
+    Spacer(Modifier.height(20.dp))
     SectionLabel("ACCENT COLOUR")
     Spacer(Modifier.height(10.dp))
     Surface(color = Panel, shape = RoundedCornerShape(22.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth()) {
