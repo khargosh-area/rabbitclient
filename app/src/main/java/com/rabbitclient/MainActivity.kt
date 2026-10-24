@@ -1051,7 +1051,7 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
         error = null
         if (submittedBackendUrl.isBlank()) {
             projects = emptyList()
-            error = "The catalogue service is not connected yet. The developer needs to deploy the secure API service once."
+            error = "CurseForge is not connected yet. Open Settings to configure the API service; the private CurseForge key must stay on the server."
             loading = false
         } else {
             val result = runCatching {
