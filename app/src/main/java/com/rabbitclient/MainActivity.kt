@@ -928,10 +928,11 @@ private fun downloadCurseForgePack(context: Context, downloadUrl: String, reques
         }
         val folder = java.io.File(context.cacheDir, "rabbit-imports")
         if (!folder.exists() && !folder.mkdirs()) throw IllegalStateException("Could not create the pack import cache.")
-        destination = java.io.File(folder, java.lang.System.currentTimeMillis().toString() + "_" + safeName)
+        val outputFile = java.io.File(folder, java.lang.System.currentTimeMillis().toString() + "_" + safeName)
+        destination = outputFile
         var copied = 0L
         connection.inputStream.use { input ->
-            java.io.FileOutputStream(destination).use { output ->
+            java.io.FileOutputStream(outputFile).use { output ->
                 val buffer = ByteArray(64 * 1024)
                 while (true) {
                     val count = input.read(buffer)
@@ -944,7 +945,7 @@ private fun downloadCurseForgePack(context: Context, downloadUrl: String, reques
             }
         }
         if (copied == 0L) throw IllegalStateException("CurseForge returned an empty download.")
-        return destination
+        return outputFile
     } catch (error: Exception) {
         destination?.delete()
         throw error
@@ -1251,7 +1252,13 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?) {
                         }
                     }
                 }) {
-                    Text(if (installingDownload) "Downloading…" else "Install in Minecraft", color = Accent, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (installingDownload) "Downloading…"
+                        else if (selectedDownload?.fileName?.endsWith(".zip", ignoreCase = true) == true) "Download archive"
+                        else "Install in Minecraft",
+                        color = Accent,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
