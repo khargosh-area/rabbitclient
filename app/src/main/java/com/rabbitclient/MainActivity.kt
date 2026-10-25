@@ -58,6 +58,7 @@ private val TextMuted = Color(0xFF9BAABC)
 private val Line = Color(0x986A7B90)
 
 private const val RABBIT_REPOSITORY_URL = "https://github.com/khargosh-area/rabbitclient"
+private const val REPLAYCRAFT_PROJECT_URL = "https://www.curseforge.com/minecraft-bedrock/scripts/replaycraft"
 
 private data class AccentPreset(val name: String, val primary: Color, val deep: Color)
 
@@ -178,8 +179,6 @@ private fun RabbitApp() {
         return
     }
     var page by remember { mutableStateOf("Home") }
-    // A one-shot preset lets the home shortcut open CurseForge directly on replay add-ons.
-    var curseForgePreset by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var glassOpacity by remember(context) {
@@ -272,7 +271,7 @@ private fun RabbitApp() {
                                 DockItem(
                                     destination = destination,
                                     selected = page == destination.page,
-                                    onClick = { if (destination.page == "CurseForge") curseForgePreset = null; page = destination.page }
+                                    onClick = { page = destination.page }
                                 )
                             }
                         }
@@ -328,8 +327,8 @@ private fun RabbitApp() {
                         wallpaperSelected = wallpaperUri != null,
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onInstances = { page = "Instances" },
-                        onCurseForge = { curseForgePreset = null; page = "CurseForge" },
-                        onReplayAddon = { curseForgePreset = "ReplayCraft"; page = "CurseForge" },
+                        onCurseForge = { page = "CurseForge" },
+                        onReplayAddon = { openExternalLink(context, REPLAYCRAFT_PROJECT_URL) },
                         onLaunch = {
                             val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
                             val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
@@ -345,7 +344,7 @@ private fun RabbitApp() {
                         },
                         onRefresh = { installedGames = detectInstalledGames(context) }
                     )
-                    "CurseForge" -> CurseForgeScreen(onBack = { curseForgePreset = null; page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { curseForgePreset = null; page = "Settings" }, presetQuery = curseForgePreset)
+                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { page = "Settings" })
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
                         wallpaperUri = wallpaperUri,
@@ -363,6 +362,7 @@ private fun RabbitApp() {
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onInstances = { page = "Instances" },
                         onCurseForge = { page = "CurseForge" },
+                        onReplayAddon = { openExternalLink(context, REPLAYCRAFT_PROJECT_URL) },
                         onLaunch = {
                             val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
                             val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
@@ -552,7 +552,7 @@ private fun HomeScreen(
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Replay add-on", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Search the Bedrock add-on catalogue for ReplayCraft. Check game-version compatibility before importing.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                    Text("Open the official project page and choose the file matching your Minecraft version.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
                 }
                 Text("→", color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
@@ -1137,7 +1137,7 @@ private fun packMimeType(file: java.io.File): String = when (file.extension.lowe
 }
 
 @Composable
-private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSettings: () -> Unit, presetQuery: String?) {
+private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSettings: () -> Unit) {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var backendUrl by remember(context) { mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "") }
@@ -1145,9 +1145,9 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
     val scope = rememberCoroutineScope()
     var installingDownload by remember { mutableStateOf(false) }
     val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
-    var category by remember(presetQuery) { mutableStateOf(if (presetQuery == "ReplayCraft") "Scripts" else "Add-ons") }
-    var query by remember(presetQuery) { mutableStateOf(presetQuery.orEmpty()) }
-    var submittedQuery by remember(presetQuery) { mutableStateOf(presetQuery.orEmpty()) }
+    var category by remember { mutableStateOf("Add-ons") }
+    var query by remember { mutableStateOf("") }
+    var submittedQuery by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf("Popular") }
     var refreshToken by remember { mutableIntStateOf(0) }
     var projects by remember { mutableStateOf<List<CurseForgeProject>>(emptyList()) }
