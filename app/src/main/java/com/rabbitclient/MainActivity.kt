@@ -178,6 +178,8 @@ private fun RabbitApp() {
         return
     }
     var page by remember { mutableStateOf("Home") }
+    // A one-shot preset lets the home shortcut open CurseForge directly on replay add-ons.
+    var curseForgePreset by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var glassOpacity by remember(context) {
@@ -270,7 +272,7 @@ private fun RabbitApp() {
                                 DockItem(
                                     destination = destination,
                                     selected = page == destination.page,
-                                    onClick = { page = destination.page }
+                                    onClick = { if (destination.page == "CurseForge") curseForgePreset = null; page = destination.page }
                                 )
                             }
                         }
@@ -326,7 +328,8 @@ private fun RabbitApp() {
                         wallpaperSelected = wallpaperUri != null,
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onInstances = { page = "Instances" },
-                        onCurseForge = { page = "CurseForge" },
+                        onCurseForge = { curseForgePreset = null; page = "CurseForge" },
+                        onReplayAddon = { curseForgePreset = "ReplayCraft"; page = "CurseForge" },
                         onLaunch = {
                             val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
                             val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
@@ -342,7 +345,7 @@ private fun RabbitApp() {
                         },
                         onRefresh = { installedGames = detectInstalledGames(context) }
                     )
-                    "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { page = "Settings" })
+                    "CurseForge" -> CurseForgeScreen(onBack = { curseForgePreset = null; page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { curseForgePreset = null; page = "Settings" }, presetQuery = curseForgePreset)
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
                         wallpaperUri = wallpaperUri,
@@ -440,6 +443,7 @@ private fun HomeScreen(
     onWallpaperClick: () -> Unit,
     onInstances: () -> Unit,
     onCurseForge: () -> Unit,
+    onReplayAddon: () -> Unit,
     onLaunch: () -> Unit
 ) {
     val selectedGame = installedGames.firstOrNull { it.packageName == selectedGamePackage }
@@ -528,6 +532,29 @@ private fun HomeScreen(
                     Text("Explore community add-ons and content.", color = TextMuted, fontSize = 11.sp, lineHeight = 15.sp)
                     Text("Browse projects  →", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onReplayAddon)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(color = Accent.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
+                    Text("REPLAY", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 13.dp))
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Replay add-on", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Search the Bedrock add-on catalogue for ReplayCraft. Check game-version compatibility before importing.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                }
+                Text("→", color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -1110,7 +1137,7 @@ private fun packMimeType(file: java.io.File): String = when (file.extension.lowe
 }
 
 @Composable
-private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSettings: () -> Unit) {
+private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSettings: () -> Unit, presetQuery: String?) {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var backendUrl by remember(context) { mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "") }
@@ -1118,9 +1145,9 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
     val scope = rememberCoroutineScope()
     var installingDownload by remember { mutableStateOf(false) }
     val categories = listOf("Add-ons", "Maps", "Texture Packs", "Scripts", "Skins")
-    var category by remember { mutableStateOf("Add-ons") }
-    var query by remember { mutableStateOf("") }
-    var submittedQuery by remember { mutableStateOf("") }
+    var category by remember(presetQuery) { mutableStateOf(if (presetQuery == "ReplayCraft") "Scripts" else "Add-ons") }
+    var query by remember(presetQuery) { mutableStateOf(presetQuery.orEmpty()) }
+    var submittedQuery by remember(presetQuery) { mutableStateOf(presetQuery.orEmpty()) }
     var sort by remember { mutableStateOf("Popular") }
     var refreshToken by remember { mutableIntStateOf(0) }
     var projects by remember { mutableStateOf<List<CurseForgeProject>>(emptyList()) }
