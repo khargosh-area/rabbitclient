@@ -10,7 +10,7 @@ Rabbit Client's interface is an original Android design inspired by common launc
 
 ## Current status
 
-**Version:** 0.1.0 starter  
+**Version:** 0.2.0  
 **Target game range:** Minecraft Bedrock/MCPE 1.21.90 and newer, including future versions only where compatibility is verified.  
 **Current reality:** the launcher detects installed Android Minecraft editions (Stable, Preview, Beta where present), lets the user select one, saves that selection, and launches the selected installed package. It does not download arbitrary Minecraft versions or create isolated copies of the game. In-game modules are intentionally absent from the launcher UI until a verified Android game integration exists.
 

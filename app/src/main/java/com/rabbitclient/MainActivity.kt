@@ -58,6 +58,7 @@ private val TextMuted = Color(0xFF9BAABC)
 private val Line = Color(0x986A7B90)
 
 private const val RABBIT_REPOSITORY_URL = "https://github.com/khargosh-area/rabbitclient"
+private const val REPLAYCRAFT_PROJECT_URL = "https://www.curseforge.com/minecraft-bedrock/scripts/replaycraft"
 
 private data class AccentPreset(val name: String, val primary: Color, val deep: Color)
 
@@ -310,7 +311,7 @@ private fun RabbitApp() {
                             Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                         }
                         Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
-                            Text("v0.1.0", color = TextMuted,
+                            Text("v0.2.0", color = TextMuted,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
                         }
                     }
@@ -327,6 +328,7 @@ private fun RabbitApp() {
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onInstances = { page = "Instances" },
                         onCurseForge = { page = "CurseForge" },
+                        onReplayAddon = { openExternalLink(context, REPLAYCRAFT_PROJECT_URL) },
                         onLaunch = {
                             val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
                             val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
@@ -360,6 +362,7 @@ private fun RabbitApp() {
                         onWallpaperClick = { homeWallpaperPicker.launch(arrayOf("image/*")) },
                         onInstances = { page = "Instances" },
                         onCurseForge = { page = "CurseForge" },
+                        onReplayAddon = { openExternalLink(context, REPLAYCRAFT_PROJECT_URL) },
                         onLaunch = {
                             val selected = installedGames.firstOrNull { it.packageName == selectedGamePackage }
                             val intent = selected?.let { context.packageManager.getLaunchIntentForPackage(it.packageName) }
@@ -440,6 +443,7 @@ private fun HomeScreen(
     onWallpaperClick: () -> Unit,
     onInstances: () -> Unit,
     onCurseForge: () -> Unit,
+    onReplayAddon: () -> Unit,
     onLaunch: () -> Unit
 ) {
     val selectedGame = installedGames.firstOrNull { it.packageName == selectedGamePackage }
@@ -532,6 +536,29 @@ private fun HomeScreen(
         }
 
         Surface(
+            color = Panel,
+            shape = RoundedCornerShape(18.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onReplayAddon)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(color = Accent.copy(alpha = 0.15f), shape = RoundedCornerShape(12.dp)) {
+                    Text("REPLAY", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 13.dp))
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Replay add-on", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Open the official project page and choose the file matching your Minecraft version.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                }
+                Text("→", color = Accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Surface(
             color = Color(0x4410141A), shape = RoundedCornerShape(16.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.65f)),
             modifier = Modifier.fillMaxWidth()
@@ -541,7 +568,7 @@ private fun HomeScreen(
                     Text("RABBIT CLIENT", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
                     Text("By KHARGOSH & CHATGPT", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text("v0.1.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("v0.2.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -860,7 +887,7 @@ private fun AboutScreen() {
                 Text("A focused launcher UI for managing your Minecraft entry point, exploring community content, and organizing planned tools.", color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp)
                 Spacer(Modifier.height(12.dp))
                 Surface(color = PanelRaised, shape = RoundedCornerShape(10.dp)) {
-                    Text("VERSION 0.1.0  ·  ANDROID", color = Accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+                    Text("VERSION 0.2.0  ·  ANDROID", color = Accent, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
                 }
             }
         }
@@ -1333,7 +1360,7 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
             }
         }
 
-        Text("Content is supplied by CurseForge. Downloads are saved to your Downloads folder and may need to be imported into Minecraft manually.",
+        Text("Content is supplied by CurseForge. Downloads are staged in Rabbit Client’s temporary import cache. Supported packs are handed to Minecraft; ZIP archives may need manual import.",
             color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(bottom = 8.dp))
     }
 
