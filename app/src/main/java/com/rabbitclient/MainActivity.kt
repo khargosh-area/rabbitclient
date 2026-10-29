@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,7 +108,7 @@ private val dockDestinations = listOf(
     DockDestination("Launch", "Home", Icons.Default.Home),
     DockDestination("Instances", "Instances", Icons.Default.Tune),
     DockDestination("CurseForge", "CurseForge", Icons.Default.Language),
-    DockDestination("About", "About", Icons.Default.Info),
+    DockDestination("Modules", "Modules", Icons.Default.Build),
     DockDestination("Settings", "Settings", Icons.Default.Settings)
 )
 
@@ -181,7 +183,7 @@ private fun RabbitApp() {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
     var glassOpacity by remember(context) {
-        mutableFloatStateOf(preferences.getFloat("glass_opacity", 0.64f).coerceIn(0.45f, 0.82f))
+        mutableFloatStateOf(preferences.getFloat("glass_opacity", 0.32f).coerceIn(0.12f, 0.88f))
     }
     LaunchedEffect(glassOpacity) {
         GlassOpacityState.floatValue = glassOpacity
@@ -212,6 +214,41 @@ private fun RabbitApp() {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
             wallpaperUri = uri.toString()
             context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE).edit().putString("wallpaper_uri", uri.toString()).apply()
+        }
+    }
+    val localPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val displayName = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+                }.orEmpty()
+            }.getOrDefault("")
+            val extension = displayName.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
+            if (extension !in setOf("mcpack", "mcaddon", "mcworld", "zip")) {
+                android.widget.Toast.makeText(context, "Choose a .mcpack, .mcaddon, .mcworld, or .zip file.", android.widget.Toast.LENGTH_LONG).show()
+            } else {
+                val mime = when (extension) {
+                    "mcpack" -> "application/x-mcpack"
+                    "mcaddon" -> "application/x-mcaddon"
+                    "mcworld" -> "application/x-mcworld"
+                    else -> "application/zip"
+                }
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mime)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                try {
+                    val packageIntent = selectedGamePackage?.let { Intent(viewIntent).setPackage(it) }
+                    if (packageIntent != null) context.startActivity(packageIntent)
+                    else context.startActivity(Intent.createChooser(viewIntent, "Import into Minecraft"))
+                } catch (_: Exception) {
+                    try {
+                        context.startActivity(Intent.createChooser(viewIntent, "Open Bedrock pack"))
+                    } catch (_: Exception) {
+                        android.widget.Toast.makeText(context, "No app can open this pack. Make sure Minecraft Bedrock is installed.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
     }
     var fullWallpaper by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -310,7 +347,7 @@ private fun RabbitApp() {
                             Text(page, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                         }
                         Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp)) {
-                            Text("v0.1.0", color = TextMuted,
+                            Text("v0.3.0", color = TextMuted,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp)
                         }
                     }
@@ -343,6 +380,10 @@ private fun RabbitApp() {
                         onRefresh = { installedGames = detectInstalledGames(context) }
                     )
                     "CurseForge" -> CurseForgeScreen(onBack = { page = "Home" }, minecraftPackage = selectedGamePackage, onSettings = { page = "Settings" })
+                    "Modules" -> ModulesScreen(
+                        onImportPack = { localPackPicker.launch(arrayOf("*/*")) },
+                        onAbout = { page = "About" }
+                    )
                     "About" -> AboutScreen()
                     "Settings" -> SettingsScreen(
                         wallpaperUri = wallpaperUri,
@@ -351,7 +392,7 @@ private fun RabbitApp() {
                         selectedTheme = selectedTheme,
                         onThemeChange = { selectedTheme = it },
                         glassOpacity = glassOpacity,
-                        onGlassOpacityChange = { glassOpacity = it.coerceIn(0.45f, 0.82f) }
+                        onGlassOpacityChange = { glassOpacity = it.coerceIn(0.12f, 0.88f) }
                     )
                     else -> HomeScreen(
                         installedGames = installedGames,
@@ -541,7 +582,7 @@ private fun HomeScreen(
                     Text("RABBIT CLIENT", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
                     Text("By KHARGOSH & CHATGPT", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text("v0.1.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("v0.3.0", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -641,6 +682,98 @@ private fun InstancesScreen(
     }
 }
 
+private data class ModuleCapability(
+    val name: String,
+    val description: String,
+    val status: String = "NOT INTEGRATED"
+)
+
+@Composable
+private fun ModulesScreen(onImportPack: () -> Unit, onAbout: () -> Unit) {
+    val capabilities = listOf(
+        ModuleCapability("Auto Sprint", "Requires code running inside the Bedrock game process; a launcher-only toggle cannot enable it."),
+        ModuleCapability("Night Vision", "Would need a verified in-game rendering hook. No toggle is active in this build."),
+        ModuleCapability("Hitbox Visualizer", "Needs live entity/render data from the game. It is not connected yet."),
+        ModuleCapability("Replay / Replay Mod", "The well-known Replay Mod targets Java Edition's mod ecosystem. This Bedrock Android build has no replay recorder integration."),
+        ModuleCapability("Movable HUD", "A real HUD editor depends on an in-game overlay integration, which is not bundled.")
+    )
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(22.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("PACK & WORLD IMPORT", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                Text("Import a Bedrock file", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Choose a local .mcpack, .mcaddon, .mcworld or .zip file and hand it to Minecraft using Android's file-sharing flow. This works without the CurseForge catalogue service.", color = TextMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                Button(
+                    onClick = onImportPack,
+                    modifier = Modifier.fillMaxWidth().height(47.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Choose pack or world", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("IN-GAME MODULES", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                Text("Capability status", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+        Surface(
+            color = Color(0xFF2A2024),
+            shape = RoundedCornerShape(15.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF69424B)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                "No fake switches: these modules are listed for visibility, but are not active until a compatible Android Bedrock integration is implemented and tested.",
+                color = Color(0xFFFFD7DC), fontSize = 12.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(14.dp)
+            )
+        }
+        capabilities.forEach { capability ->
+            Surface(
+                color = Panel,
+                shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(15.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.size(43.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Build, contentDescription = null, tint = TextMuted, modifier = Modifier.size(21.dp))
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(capability.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(capability.description, color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                        Text(capability.status, color = Color(0xFFFFC8A8), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.9.sp)
+                    }
+                }
+            }
+        }
+        OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+            Icon(Icons.Default.Info, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Project details & compatibility", color = Color.White)
+        }
+    }
+}
+
 @Composable
 private fun SettingsScreen(
     wallpaperUri: String?,
@@ -660,6 +793,8 @@ private fun SettingsScreen(
         }
     }
     val preferences = remember(context) { context.getSharedPreferences("rabbit_ui_preferences", Context.MODE_PRIVATE) }
+    val settingsScope = rememberCoroutineScope()
+    var checkingCurseForgeService by remember { mutableStateOf(false) }
     var curseForgeBackendUrl by remember(context) {
         mutableStateOf(preferences.getString("curseforge_backend_url", "") ?: "")
     }
@@ -695,8 +830,8 @@ private fun SettingsScreen(
             Slider(
                 value = glassOpacity,
                 onValueChange = onGlassOpacityChange,
-                valueRange = 0.45f..0.82f,
-                steps = 10,
+                valueRange = 0.12f..0.88f,
+                steps = 14,
                 colors = SliderDefaults.colors(
                     thumbColor = Accent,
                     activeTrackColor = Accent,
@@ -729,7 +864,19 @@ private fun SettingsScreen(
                     }
                 }
             }
-            Text("Changes apply across the launcher and save automatically.", color = TextMuted, fontSize = 11.sp)
+            Text("Lower slider value = clearer panels. Set a wallpaper to see transparency clearly; changes save automatically.", color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp)
+            OutlinedButton(
+                onClick = {
+                    onThemeChange("Mint")
+                    onGlassOpacityChange(0.28f)
+                    onWallpaperChange(null)
+                    preferences.edit().remove("wallpaper_uri").putString("theme_name", "Mint").putFloat("glass_opacity", 0.28f).apply()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(13.dp)
+            ) {
+                Text("Reset appearance · clearer glass", color = Color.White, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
     Spacer(Modifier.height(20.dp))
@@ -804,14 +951,31 @@ private fun SettingsScreen(
                     } else {
                         curseForgeBackendUrl = validated.getOrThrow()
                         preferences.edit().putString("curseforge_backend_url", curseForgeBackendUrl).apply()
-                        curseForgeBackendStatus = "Saved. Open CurseForge to load the catalogue."
+                        preferences.edit().putString("curseforge_backend_url", curseForgeBackendUrl).apply()
+                        curseForgeBackendStatus = "Saved. Checking service…"
+                        checkingCurseForgeService = true
+                        settingsScope.launch {
+                            val check = runCatching {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    requestCurseForgeBackendJson(curseForgeBackendUrl, "/health")
+                                }
+                            }
+                            curseForgeBackendStatus = check.fold(
+                                onSuccess = { body ->
+                                    if (body.optBoolean("ok", false)) "Service online. Catalogue access still depends on its CurseForge API key and Bedrock category support."
+                                    else "Service responded, but its health check was not successful."
+                                },
+                                onFailure = { failure -> failure.message ?: "Could not reach the service." }
+                            )
+                            checkingCurseForgeService = false
+                        }
                         android.widget.Toast.makeText(context, "CurseForge service URL saved.", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Bg)
-            ) { Text("Save service URL", fontWeight = FontWeight.Bold) }
+            ) { Text(if (checkingCurseForgeService) "Testing service…" else "Save and test service", fontWeight = FontWeight.Bold) }
             Text(
                 "This URL is your deployed Rabbit Client API service, not a CurseForge key. Keep CURSEFORGE_API_KEY on the server only.",
                 color = TextMuted, fontSize = 10.sp, lineHeight = 15.sp
@@ -1302,6 +1466,9 @@ private fun CurseForgeScreen(onBack: () -> Unit, minecraftPackage: String?, onSe
                         OutlinedButton(onClick = { refreshToken++ }, shape = RoundedCornerShape(12.dp)) {
                             Text("Retry", color = Accent)
                         }
+                    }
+                    TextButton(onClick = { openExternalLink(context, "https://www.curseforge.com/minecraft-bedrock/addons") }) {
+                        Text("Open official Bedrock add-ons website", color = Accent, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
