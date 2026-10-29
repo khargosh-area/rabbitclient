@@ -10,9 +10,9 @@ Rabbit Client's interface is an original Android design inspired by common launc
 
 ## Current status
 
-**Version:** 0.1.0 starter  
+**Version:** 0.3.0 preview  
 **Target game range:** Minecraft Bedrock/MCPE 1.21.90 and newer, including future versions only where compatibility is verified.  
-**Current reality:** the launcher detects installed Android Minecraft editions (Stable, Preview, Beta where present), lets the user select one, saves that selection, and launches the selected installed package. It does not download arbitrary Minecraft versions or create isolated copies of the game. In-game modules are intentionally absent from the launcher UI until a verified Android game integration exists.
+**Current reality:** the launcher detects installed Android Minecraft editions (Stable, Preview, Beta where present), lets the user select one, saves that selection, and launches the selected installed package. It does not create isolated copies of the game. The Modules screen reports unavailable in-game features honestly; Auto Sprint, Night Vision, hitboxes, replay recording and HUD editing are not implemented. Local `.mcpack`, `.mcaddon`, `.mcworld`, and `.zip` files can be handed to Minecraft through Android. The CurseForge API catalogue needs a deployed backend and an approved private API key; the official Bedrock add-ons website is offered as a fallback.
 
 ## Visual direction
 
