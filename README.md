@@ -1,8 +1,6 @@
 # Rabbit Client
 
-<p align="center">
-  <img src="app/src/main/res/drawable/rabbit_logo.xml" width="88" alt="Rabbit Client logo" />
-</p>
+<p align="center">🐇</p>
 
 <h1 align="center">Rabbit Client</h1>
 <p align="center"><strong>A native Android companion launcher for Minecraft Bedrock.</strong></p>
