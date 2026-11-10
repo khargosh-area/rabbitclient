@@ -1,288 +1,375 @@
-# Rabbit Client
+# 🐇 Rabbit Client
 
-<p align="center">🐇</p>
-
-<h1 align="center">Rabbit Client</h1>
-<p align="center"><strong>A native Android companion launcher for Minecraft Bedrock.</strong></p>
 <p align="center">
-  <a href="https://github.com/khargosh-area/rabbitclient/actions/workflows/android.yml"><img src="https://github.com/khargosh-area/rabbitclient/actions/workflows/android.yml/badge.svg" alt="Android Build"></a>
-  <img src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
-  <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose">
-  <img src="https://img.shields.io/badge/status-Preview-orange" alt="Preview status">
+  <img src="app/src/main/res/drawable/rabbit_logo.xml" alt="Rabbit Client logo" width="112" />
 </p>
 
-Rabbit Client is an Android app built with **Kotlin, Jetpack Compose and Material 3**. It provides a focused place to select and open an already-installed Minecraft Bedrock edition, browse community content through an optional CurseForge service, import supported Bedrock files, and personalize the launcher.
+<h1 align="center">Rabbit Client</h1>
+<p align="center"><strong>A native Android companion launcher for Minecraft Bedrock Edition.</strong></p>
 
-> **Project status:** Preview / work in progress. The app is a companion launcher, not a replacement Minecraft game client. Features that require code running inside Minecraft are not presented as working switches.
+<p align="center">
+  <a href="https://github.com/khargosh-area/rabbitclient/actions/workflows/android.yml"><img src="https://github.com/khargosh-area/rabbitclient/actions/workflows/android.yml/badge.svg" alt="Android Build"></a>
+  <img src="https://img.shields.io/badge/Android-9%2B-3DDC84?logo=android&logoColor=white" alt="Android 9+">
+  <img src="https://img.shields.io/badge/Kotlin-1F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose">
+  <img src="https://img.shields.io/badge/Version-0.3.0%20Preview-orange" alt="Preview">
+</p>
+
+Rabbit Client is an Android application built with **Kotlin, Jetpack Compose and Material 3**. It gives Minecraft Bedrock players a dedicated place to choose an installed game edition, launch it, hand supported add-on/world files to Minecraft, explore Bedrock content through an optional CurseForge service, and personalize the launcher interface.
+
+> [!IMPORTANT]
+> **Rabbit Client is a work-in-progress companion launcher, not a replacement Minecraft game client.** The current build opens Minecraft editions already installed on the device. Features that need code running inside Minecraft are not advertised as working until a real Android-compatible integration exists.
+
+---
 
 ## Contents
 
-- [What works today](#what-works-today)
-- [Screens and features](#screens-and-features)
-- [Important Android limitations](#important-android-limitations)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Build the Android app](#build-the-android-app)
-- [Optional CurseForge service](#optional-curseforge-service)
-- [Version and compatibility policy](#version-and-compatibility-policy)
-- [Roadmap](#roadmap)
-- [Security and privacy](#security-and-privacy)
-- [Credits and licensing](#credits-and-licensing)
-- [Contributing](#contributing)
+- [Project vision](#-project-vision)
+- [Current release and status](#-current-release-and-status)
+- [Features](#-features)
+- [Screens](#-screens)
+- [Supported files](#-supported-files)
+- [How the launcher works](#-how-the-launcher-works)
+- [Android limitations](#-important-android-limitations)
+- [Technology stack](#-technology-stack)
+- [Project structure](#-project-structure)
+- [Requirements](#-requirements)
+- [Build the Android app](#-build-the-android-app)
+- [CurseForge backend setup](#-curseforge-backend-setup)
+- [Compatibility policy](#-minecraft-compatibility-policy)
+- [Roadmap](#-roadmap)
+- [Security and privacy](#-security-and-privacy)
+- [Research and technical notes](#-research-and-technical-notes)
+- [Credits and licensing](#-credits-and-licensing)
+- [Contributing](#-contributing)
 
-## What works today
+## 🎯 Project vision
 
-| Area | Current implementation | Status |
-| --- | --- | --- |
-| Native Android UI | Kotlin + Jetpack Compose + Material 3 | Implemented |
-| Minecraft edition detection | Detects installed Stable, Preview and Beta package variants when Android exposes them | Implemented |
-| Edition selection | Select an installed edition and retain the launcher selection | Implemented |
-| Launch | Opens the selected installed Minecraft package using Android's package launch intent | Implemented |
-| Theme and accent | Obsidian-style dark interface with selectable accent presets | Implemented |
-| Wallpaper | Choose a local image through Android's document picker; persist its URI permission | Implemented |
-| Glass opacity | Adjust translucent panel opacity; preference is saved | Implemented |
-| Local pack hand-off | Select .mcpack, .mcaddon, .mcworld or .zip and hand it to Minecraft/Android | Implemented, device-dependent |
-| CurseForge catalogue | Search UI and optional backend connection are present | Requires a configured backend and approved API key |
-| In-game modules | Capability information is shown, but gameplay toggles are not connected to Minecraft | Not implemented |
-| Isolated game instances | Separate app-level instance management is not available yet | Planned |
+The goal is to build a polished, genuinely useful Android companion for Minecraft Bedrock with a premium dark interface and clear separation between launcher features and in-game features.
 
-The current app metadata is **0.3.0** (versionName in app/build.gradle.kts). A successful debug build means the Android project compiled; it does not prove that every Minecraft version, device, import flow or backend deployment has been tested.
+Design principles:
 
-## Screens and features
+- Native Android experience rather than a website wrapped in an APK.
+- Obsidian-inspired dark UI, restrained glass effects and mint/accent colour options.
+- Custom wallpaper and adjustable panel transparency.
+- Real installed-game detection and launch hand-off.
+- Safe file selection and import hand-off using Android APIs.
+- Optional content discovery without exposing private API credentials in the APK.
+- No fake toggles, pretend instances or unsupported compatibility claims.
+
+## 📌 Current release and status
+
+| Item | Value |
+| --- | --- |
+| App name | Rabbit Client |
+| Current project version | 0.3.0 Preview |
+| Android application ID | `com.rabbitclient` |
+| Minimum Android version | Android 9 / API 28 |
+| Compile / target SDK | 35 / 35 |
+| Language | Kotlin |
+| UI toolkit | Jetpack Compose + Material 3 |
+| Java target | 17 |
+| Project state | Preview / active development |
+
+A successful Gradle or CI build confirms that the project compiles. It does **not** mean every Minecraft release, Android device, add-on, backend deployment or in-game feature has been tested.
+
+## ✨ Features
+
+### Implemented in the current app
+
+- **Installed edition detection:** checks for Minecraft Stable, Preview and Beta package variants when Android makes them available.
+- **Edition selection:** choose an edition already installed on the device and retain the selected package.
+- **Launch hand-off:** opens the selected Minecraft package through Android's package launch intent.
+- **Home dashboard:** shows the selected edition/version and provides access to launcher areas.
+- **Custom wallpaper:** choose an image through Android's document picker; retain the URI permission for later use.
+- **Theme presets:** switch the launcher accent/theme preset.
+- **Glass opacity:** adjust translucent panel appearance.
+- **Local file hand-off:** select supported Bedrock pack/world files and send them to Minecraft or another compatible app.
+- **CurseForge client UI:** search and browse through the optional backend service.
+- **Honest module status:** the Modules page explains which gameplay features still need a verified in-game integration.
+
+### Not implemented yet
+
+These are **not active gameplay features** in the current preview:
+
+- Auto Sprint
+- Night Vision
+- Hitbox Visualizer
+- Replay recording / Replay Mod
+- Movable in-game HUD
+- A separate, isolated Minecraft installation
+- Independent worlds, accounts and pack storage per Rabbit instance
+- A built-in Bedrock runtime that downloads and launches arbitrary game versions
+
+A launcher screen or toggle alone cannot change Minecraft gameplay. Each in-game feature needs a compatible runtime bridge and device/game-version testing.
+
+## 🧭 Screens
 
 ### Home
-
-- Displays the selected installed Minecraft edition and detected version.
-- Provides a launch action for that edition.
-- Links to the Instances and CurseForge areas.
-- Offers a shortcut to personalize the launcher wallpaper.
+The dashboard displays the currently selected installed edition, its detected version and a launch action. It also provides shortcuts to Instances, CurseForge and wallpaper customization.
 
 ### Instances
+In this preview, **Instances means installed-edition selection**, not independent game installations.
 
-The current Instances screen is an **installed-edition selector**. It checks for these Android package variants:
+The app checks these package IDs:
 
-- Stable: com.mojang.minecraftpe
-- Preview: com.mojang.minecraftpe.preview
-- Beta: com.mojang.minecraftpe.beta
+| Edition | Android package |
+| --- | --- |
+| Minecraft Stable | `com.mojang.minecraftpe` |
+| Minecraft Preview | `com.mojang.minecraftpe.preview` |
+| Minecraft Beta | `com.mojang.minecraftpe.beta` |
 
-Only editions already installed on the device can be selected and launched. The screen does not download arbitrary game versions or create isolated copies of Minecraft.
+Only installed packages can be selected and launched.
 
 ### CurseForge
+The catalogue screen supports project search, category selection, sorting/refresh, project details and supported-file download hand-off. It uses the optional Node.js backend so the private CurseForge API key stays off the Android device.
 
-The native catalogue screen includes:
-
-- Search by project name.
-- Content category selection (Add-ons, Maps, Texture Packs, Scripts and Skins).
-- Popular / latest sorting and refresh.
-- Project details and supported file download flow.
-- A fallback link to the official Bedrock add-ons catalogue when the service is unavailable.
-
-Catalogue access is optional. It requires the separately hosted Node.js service described below, together with an approved CurseForge API key configured on that server. The app does not contain the private API key.
-
-### Local pack and world import
-
-The Android document picker accepts:
-
-- .mcpack
-- .mcaddon
-- .mcworld
-- .zip
-
-Rabbit Client asks Android to open the selected file with Minecraft or another compatible app. Android/Minecraft may show an app chooser or an import confirmation. **This is a hand-off workflow, not a promise of silent installation into Minecraft's private storage.**
-
-### Personalization
-
-- Obsidian-inspired dark interface.
-- Selectable accent colour presets.
-- Custom launcher wallpaper.
-- Adjustable glass panel transparency.
-- Saved appearance preferences and wallpaper access.
+If the backend is unavailable or not configured, the app can direct users to the official Bedrock add-ons catalogue instead.
 
 ### Modules
+This screen describes planned gameplay integrations and their technical requirements. It does not pretend that unsupported features are active.
 
-The Modules area documents planned in-game capabilities and explains their integration requirements. Auto Sprint, Night Vision, Hitbox Visualizer, Replay and a movable HUD are **not active features** in this preview. A launcher-only toggle cannot change gameplay: each module needs a verified Android-compatible integration with the running Bedrock game.
+### Settings
+Launcher appearance preferences include theme/accent presets, wallpaper and glass opacity. CurseForge service configuration is also available from Settings.
 
-## Important Android limitations
+### About
+Project and app information, credits and project links.
 
-Rabbit Client intentionally distinguishes an installed-game launcher from a managed game runtime.
+## 📦 Supported files
 
-1. **No separate Minecraft installation yet.** Launching Stable or Preview opens that installed Android package. It does not create a second data directory.
-2. **No automatic world or pack isolation.** The existing Minecraft app retains ownership of its private data.
-3. **No in-game injection or gameplay module runtime.** The Windows/desktop approaches used by other clients cannot simply be copied into an Android app.
-4. **No silent private-storage modification.** File imports use Android's supported document and URI-sharing flows.
-5. **No universal version guarantee.** Detecting a version or successfully opening the game does not prove that a particular in-game integration is compatible.
+The local file picker accepts:
 
-Rabbit Client must not claim isolated instances, working gameplay modules, or universal Minecraft-version support until those capabilities are implemented and tested on real devices.
-
-## Architecture
-
-    Rabbit Client
-    ├── Android app
-    │   ├── Kotlin
-    │   ├── Jetpack Compose + Material 3
-    │   ├── Installed Minecraft package detection
-    │   ├── Android launch-intent hand-off
-    │   ├── Document picker and file hand-off
-    │   ├── Theme, wallpaper and glass preferences
-    │   └── CurseForge catalogue client
-    │
-    └── Optional backend
-        ├── Node.js HTTP service
-        ├── CurseForge API proxy
-        ├── Server-side API-key handling
-        └── Search and supported-file download endpoints
-
-The Android UI and the optional catalogue service are separate. The backend is not required to build the app, select an installed edition, change appearance, or hand a local pack to Minecraft.
-
-## Requirements
-
-| Component | Requirement |
+| Extension | Intended content |
 | --- | --- |
-| Android Studio | A recent version with Android SDK support |
-| Android SDK | Compile SDK 35; Android build tools 35.0.0 for the CI configuration |
-| Minimum Android version | API 28 (Android 9) |
-| Java | JDK 17 |
-| Kotlin | Kotlin Android and Compose compiler plugins from the project Gradle configuration |
-| Optional backend | Node.js 20 or newer |
+| `.mcpack` | Bedrock resource/behaviour/skin pack |
+| `.mcaddon` | Bedrock add-on bundle |
+| `.mcworld` | Bedrock world |
+| `.zip` | Supported archive hand-off |
 
-The project uses Android application ID **com.rabbitclient**.
+Rabbit Client uses Android's document picker and URI-sharing flow to hand the selected file to Minecraft or another compatible app. Minecraft/Android may show an app chooser or import confirmation. This is **not** silent installation into Minecraft's private storage and does not guarantee every archive will be accepted by every game version.
 
-## Build the Android app
+## 🚀 How the launcher works
 
-1. Clone the repository:
+1. Android reports which Minecraft package variants are installed and visible to Rabbit Client.
+2. Rabbit Client shows the detected editions and versions.
+3. The user selects an installed edition.
+4. On Launch, the app asks Android to open that package.
+5. For a local add-on/world file, the user selects it through the document picker and Rabbit Client hands it to a compatible app.
 
-       git clone https://github.com/khargosh-area/rabbitclient.git
-       cd rabbitclient
+Rabbit Client does not replace or silently modify the official Minecraft installation during this flow.
 
-2. Open the project in Android Studio and allow Gradle to sync.
-3. Install the Android SDK platform/build tools required by the project.
-4. Build and run the app on an Android device or emulator:
+## ⚠️ Important Android limitations
 
-       gradle testDebugUnitTest assembleDebug
+Android applications are sandboxed. A launcher cannot create a truly separate Minecraft data directory merely by storing a profile name or changing its own UI.
 
-5. The debug APK is produced at:
+- Launching Stable or Preview opens that installed Android package.
+- The installed Minecraft app continues to own its private worlds, packs and account data.
+- A second launcher profile is not proof of an isolated game instance.
+- Desktop Windows game hooks, DirectX renderers and DLL-based modules cannot simply be copied into an Android app.
+- File hand-off through Android does not grant unrestricted access to Minecraft's private storage.
+- Detecting a version or opening the game does not prove in-game module compatibility.
 
-       app/build/outputs/apk/debug/app-debug.apk
+A real Rabbit Instance needs a supported, legally distributable Android-compatible runtime with its own verified data ownership and launch path. It must pass the acceptance checklist in [docs/instance-architecture.md](docs/instance-architecture.md) before being described as isolated.
 
-The repository's GitHub Actions workflow runs the backend JavaScript syntax check, Android unit tests and debug APK build on pushes to main, pull requests targeting main, and manual workflow dispatch. The APK is uploaded as a workflow artifact; it is not automatically a Play Store release.
+## 🧰 Technology stack
 
-## Optional CurseForge service
+| Layer | Technology |
+| --- | --- |
+| Android app | Kotlin |
+| UI | Jetpack Compose |
+| Design components | Material 3 |
+| Android APIs | Android SDK / AndroidX |
+| Build system | Gradle Kotlin DSL |
+| Java compatibility | JDK 17 |
+| Optional API service | Node.js |
+| Catalogue provider | Official CurseForge for Studios API |
+| CI | GitHub Actions |
 
-The service lives in backend/. Its purpose is to keep the private CurseForge API key on a server rather than inside the APK.
+## 📁 Project structure
+
+```text
+rabbitclient/
+├── .github/
+│   └── workflows/
+│       └── android.yml        # Android CI build
+├── app/
+│   ├── src/main/
+│   │   ├── java/com/rabbitclient/
+│   │   │   ├── MainActivity.kt
+│   │   │   └── GameVersion.kt
+│   │   └── res/               # Rabbit branding and Android resources
+│   ├── src/test/              # Unit tests
+│   └── build.gradle.kts
+├── backend/
+│   ├── server.js              # CurseForge API proxy
+│   ├── package.json
+│   ├── .env.example
+│   └── README.md
+├── docs/                      # Compatibility, architecture and research notes
+├── build.gradle.kts
+├── gradle.properties
+└── settings.gradle.kts
+```
+
+## 🛠 Requirements
+
+- Android Studio with Android SDK support.
+- Android SDK Platform 35 and Build Tools 35.0.0 for the current CI setup.
+- JDK 17.
+- Android 9 / API 28 or newer for the app.
+- Node.js 20+ only if running the optional backend.
+
+## 🔨 Build the Android app
+
+Clone the repository:
+
+```bash
+git clone https://github.com/khargosh-area/rabbitclient.git
+cd rabbitclient
+```
+
+Open the project in Android Studio and allow Gradle to sync. Then run:
+
+```bash
+gradle testDebugUnitTest assembleDebug
+```
+
+The debug APK is generated at:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+The GitHub Actions workflow runs the backend JavaScript syntax check, Android unit tests and debug APK build on pushes to `main`, pull requests targeting `main`, and manual workflow dispatch. The resulting APK is uploaded as a workflow artifact. It is not automatically a Play Store release or a signed production release.
+
+## 🌐 CurseForge backend setup
+
+The optional service is in `backend/`. It keeps the approved CurseForge API key on the server rather than embedding it in the APK.
 
 ### API routes
 
-| Method | Route | Purpose |
+| Method | Route | Description |
 | --- | --- | --- |
-| GET | /health | Service health check |
-| GET | /api/curseforge/search?query=...&category=Add-ons&sort=Popular | Search the verified Bedrock catalogue |
-| GET | /api/curseforge/download/:projectId | Resolve a supported downloadable file |
+| GET | `/health` | Health check |
+| GET | `/api/curseforge/search?query=...&category=Add-ons&sort=Popular` | Search catalogue |
+| GET | `/api/curseforge/download/:projectId` | Resolve a supported project file |
 
 ### Run locally
 
-1. Open a terminal in the backend directory:
+```bash
+cd backend
+npm install
+```
 
-       cd backend
-       npm install
+Obtain API access through the [CurseForge for Studios console](https://console.curseforge.com/). Set the approved key in your shell:
 
-2. Configure the API key in your local shell. Obtain approval and a key from the [CurseForge for Studios console](https://console.curseforge.com/).
+Linux/macOS:
 
-   Linux/macOS:
+```bash
+export CURSEFORGE_API_KEY="YOUR_APPROVED_KEY"
+npm start
+```
 
-       export CURSEFORGE_API_KEY="YOUR_APPROVED_KEY"
-       npm start
+PowerShell:
 
-   PowerShell:
+```powershell
+$env:CURSEFORGE_API_KEY="YOUR_APPROVED_KEY"
+npm start
+```
 
-       $env:CURSEFORGE_API_KEY="YOUR_APPROVED_KEY"
-       npm start
+The service listens on port `8787` by default. Check `/health` on the local service. In Rabbit Client, open **Settings → CurseForge**, enter the backend base URL and use **Save and test service**.
 
-3. The service listens on port 8787 by default. Check it with:
+### Deploy
 
-       http://localhost:8787/health
+Deploy the `backend/` directory as a Node.js web service:
 
-4. In Rabbit Client, open **Settings → CurseForge**, enter the backend base URL and tap **Save and test service**. For a physical phone, use a reachable HTTPS host rather than the Android emulator's 10.0.2.2 address.
+- Build command: `npm install`
+- Start command: `npm start`
+- Secret environment variable: `CURSEFORGE_API_KEY`
+- Port: host-provided `PORT`, or `8787` by default
 
-The backend reads CURSEFORGE_API_KEY from the process environment. It does not automatically load a local .env file. Do not commit secrets.
+Use the deployed HTTPS base URL in the app, without appending `/api`.
 
-### Deploy the backend
+The backend uses the official CurseForge API. It checks for a verifiable Bedrock category and fails closed if it cannot confirm one. It accepts only supported Bedrock file extensions (`.mcpack`, `.mcaddon`, `.mcworld`, `.zip`) and HTTPS download URLs. The Android transfer flow enforces a 256 MB limit before handing the file to Android/Minecraft.
 
-Deploy the backend/ directory as a Node.js web service:
+See [backend/README.md](backend/README.md) and [backend/.env.example](backend/.env.example) for service-specific configuration.
 
-- **Build command:** npm install
-- **Start command:** npm start
-- **Secret environment variable:** CURSEFORGE_API_KEY
-- **Port:** supplied by the host through PORT, or defaults to 8787
+## 🎮 Minecraft compatibility policy
 
-Use the deployed HTTPS base URL in the app (for example, https://your-service.example), without adding /api to the end.
+The target range is **Bedrock 1.21.90 and newer**, but this is a target range rather than a guarantee that every version has been tested.
 
-The service calls the official CurseForge API. It checks for a verifiable Bedrock category and fails closed when it cannot confirm one; it should not silently return Java-only projects as Bedrock add-ons. Only .mcpack, .mcaddon, .mcworld and .zip files are eligible. The Android download flow only accepts HTTPS and enforces a 256 MB transfer limit before handing the file to Minecraft/Android.
+Minecraft adopted year-based version numbering in 2026 (for example, 26.x). Rabbit Client should parse detected version strings instead of assuming all future versions use a 1.22-style number.
 
-Read [backend/README.md](backend/README.md) and [backend/.env.example](backend/.env.example) for the service-specific details.
-
-## Version and compatibility policy
-
-The target range is **Minecraft Bedrock 1.21.90 and newer**, including future releases only when the relevant launch flow and integrations are verified. This is a target range, not a statement that every version has been tested.
-
-Minecraft's version numbering moved to year-based releases in 2026 (for example, 26.x). Rabbit Client should therefore parse the detected version instead of assuming that all future releases will use a 1.22-style number.
-
-Compatibility has separate levels:
+Compatibility is reported in separate levels:
 
 - **Detected:** Android reports an installed Minecraft package/version.
 - **Launcher hand-off:** Rabbit Client can open that installed package.
-- **In-game integration:** a specific feature has been tested against that game build.
+- **In-game integration:** a specific feature has been tested on that exact game build.
 
-Unknown future versions should be labelled as detected but not yet verified. See [docs/minecraft-version-support.md](docs/minecraft-version-support.md).
+Unknown future versions should be labelled detected but not yet verified. See [docs/minecraft-version-support.md](docs/minecraft-version-support.md).
 
-## Roadmap
+## 🗺 Roadmap
 
-The following are goals, not promises that these features are already available:
+The following are development goals, not claims about the current preview:
 
-- A real managed Rabbit Instance with its own verified runtime and separate data.
-- Safe world, resource-pack and behaviour-pack backup/export/import workflows.
-- A supported account flow with secure token storage.
-- Better Bedrock add-on discovery and import feedback.
-- Diagnostics and clearer compatibility reporting.
-- An original in-game integration layer, only if a legitimate and technically verified Android path is available.
-- A modular feature registry and configurable HUD after the game integration exists.
+- [ ] A real managed Rabbit Instance with a verified runtime and separate data.
+- [ ] Safe world, resource-pack and behaviour-pack backup/export/import.
+- [ ] Supported account flow with secure token storage.
+- [ ] Better Bedrock add-on discovery and clearer import feedback.
+- [ ] Diagnostics and compatibility reporting.
+- [ ] Original Android-compatible in-game integration, if a legitimate and technically verified path is available.
+- [ ] Modular feature registry and configurable HUD after a real game integration exists.
+- [ ] Device-level testing across supported Android and Bedrock versions.
 
-The separate-instance architecture and its acceptance checklist are documented in [docs/instance-architecture.md](docs/instance-architecture.md).
+The isolated-instance architecture and its acceptance criteria are documented in [docs/instance-architecture.md](docs/instance-architecture.md).
 
-## Security and privacy
+## 🔐 Security and privacy
 
-- Keep the CurseForge API key on the backend host. Never paste it into Kotlin source, a checked-in configuration file, or the Android APK.
-- Use HTTPS for a deployed catalogue service and its downloads.
-- The backend uses a lightweight in-memory rate limit; it is not a replacement for proper host-level access controls and abuse protection.
-- Pack downloads are restricted to HTTPS URLs returned by the official API and supported file extensions.
-- Local file selection uses Android's Storage Access Framework and URI permissions.
-- Do not ask users to paste Microsoft passwords or access tokens into the app.
-- Do not silently overwrite Minecraft worlds, account data, or installed game files.
+- Never place the CurseForge API key in Kotlin source, checked-in config or the APK.
+- Store backend credentials only in the hosting provider's secret environment.
+- Use HTTPS for deployed catalogue requests and downloads.
+- The backend's in-memory rate limit is only a lightweight safeguard; production deployments need host-level abuse protection.
+- Only official API-returned HTTPS download URLs are passed to the Android client.
+- File selection uses Android's Storage Access Framework and URI permissions.
+- Do not ask users to paste Microsoft passwords or access tokens into Rabbit Client.
+- Do not silently overwrite Minecraft worlds, account data or installed game files.
+- Validate archive contents before any future extraction or restore workflow is added.
 
-## Credits and licensing
+## 📚 Research and technical notes
 
-**Project creator:** [Khargoshh](https://github.com/khargosh-area)  
-**AI development assistance:** ChatGPT
-
-Rabbit Client has its own Android interface and implementation. Research into other launchers and clients is for understanding workflows and platform constraints; it does not imply affiliation, endorsement, or identical functionality. Preserve all third-party license notices when using third-party code or assets. Do not redistribute Minecraft assets or other copyrighted material without permission.
-
-The supplied desktop-source investigation notes identify an AGPL-3.0-licensed source archive. Review the applicable license obligations before reusing any code from that archive. See the research notes in docs/ for evidence boundaries and platform-specific findings.
-
-## Contributing
-
-Issues and carefully scoped pull requests are welcome. Before adding a feature:
-
-1. Identify whether it belongs in the Android launcher, the optional backend, or a future in-game runtime.
-2. Use Android-supported APIs for package discovery, document access and launch hand-off.
-3. Keep secrets out of the repository and APK.
-4. Add tests for version parsing, input validation and backend behavior where applicable.
-5. Test user-visible flows on a real Android device.
-6. Mark features as planned or unavailable until their behavior is demonstrated.
-
-Useful project notes:
+The `docs/` directory contains investigation notes and implementation boundaries:
 
 - [Compatibility matrix](docs/compatibility-matrix.md)
 - [Instance architecture and acceptance checklist](docs/instance-architecture.md)
 - [Minecraft version support policy](docs/minecraft-version-support.md)
 - [Flarial static inspection](docs/flarial-static-inspection.md)
-- [Android investigation notes](docs/rea-investigation-followup-2-android-map.md)
+- [Android investigation map](docs/rea-investigation-followup-2-android-map.md)
+- [Module lifecycle and HUD notes](docs/rea-investigation-followup-3-module-lifecycle.md)
+- [Launcher implementation comparison notes](docs/rea-levi-flarial-implementation.md)
+
+Research notes distinguish evidence from assumptions. The presence of a class name or UI label in another project is not proof that the same feature is available in Rabbit Client.
+
+## 🙌 Credits and licensing
+
+- **Project creator:** [Khargoshh](https://github.com/khargosh-area)
+- **AI development assistance:** ChatGPT
+
+Rabbit Client has its own Android interface and implementation. Studying other launchers/clients is for understanding workflows and platform constraints; it does not imply affiliation, endorsement or identical functionality.
+
+Preserve third-party license notices when integrating third-party code. Do not redistribute Minecraft assets or other copyrighted material without permission. The supplied desktop-source investigation identifies an AGPL-3.0-licensed source archive; review all applicable license obligations before reusing any code from it.
+
+## 🤝 Contributing
+
+Issues and scoped pull requests are welcome. Before adding a feature:
+
+1. Decide whether it belongs in the Android launcher, optional backend or a future in-game runtime.
+2. Use Android-supported APIs for package discovery, document access and launch hand-off.
+3. Keep credentials out of the repository and APK.
+4. Add tests for version parsing, input validation and backend behavior where appropriate.
+5. Test user-visible flows on a real Android device.
+6. Label a feature as planned/unavailable until its behavior is demonstrated.
+7. Do not advertise an isolated instance or working gameplay module without passing its acceptance tests.
+
+---
+
+<p align="center"><strong>Built with care by Khargoshh + ChatGPT 🐇</strong></p>
